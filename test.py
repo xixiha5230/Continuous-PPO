@@ -72,8 +72,7 @@ def test():
     run_num_pretrained = 0  # set this to load a particular checkpoint num
 
     directory = "PPO_preTrained" + '/' + env_name + '/'
-    checkpoint_path = directory + \
-        "PPO_{}_{}_{}.pth".format(env_name, random_seed, run_num_pretrained)
+    checkpoint_path = f"./PPO_logs/{env_name}/run_0/checkpoints/1608.pth"
     print("loading network from : " + checkpoint_path)
 
     ppo_agent.load(checkpoint_path)
@@ -84,12 +83,11 @@ def test():
 
     for ep in range(1, total_test_episodes+1):
         ep_reward = 0
-        state, _ = env.reset()
+        state = env.reset()
 
         for t in range(1, max_ep_len+1):
             action = ppo_agent.select_action(state)
-            state, reward, terminated, truncated, info = env.step(action)
-            done = terminated or truncated
+            state, reward, done, info = env.step(action)
             ep_reward += reward
 
             if render:
