@@ -10,67 +10,29 @@ from algorithm.PPO import PPO
 
 from datetime import datetime
 
+################################## set device ##################################
+print("============================================================================================")
+# set device to cpu or cuda
+device = 'cpu'
+if(torch.cuda.is_available()):
+    device = 'cuda'
+    torch.cuda.empty_cache()
+    print("Device set to : " + str(torch.cuda.get_device_name(device)))
+else:
+    print("Device set to : cpu")
+print("============================================================================================")
+
 
 class Trainer:
     def __init__(self, env, args) -> None:
         with open(args.config, 'r') as infile:
             self.config = yaml.safe_load(infile)
         signal.signal(signal.SIGINT, self._signal_handler)
-
-        ####### initialize environment hyperparameters ######
-        self.env_name = self.config['env_name']
-        # continuous action space; else discrete
-        self.has_continuous_action_space = self.config.get(
-            'has_continuous_action_space', True)
-        # max timesteps in one episode
-        self.max_ep_len = self.config.get('max_ep_len', 1000)
-        # break training loop if timeteps > max_training_timesteps
-        self.max_training_timesteps = self.config.get(
-            'max_training_timesteps', int(1e7))
-
-        # print avg reward in the interval (in num timesteps)
-        self.print_freq = self.config.get('print_freq', self.max_ep_len * 10)
-        # log avg reward in the interval (in num timesteps)
-        self.log_freq = self.config.get('log_freq', self.max_ep_len * 2)
-        # save model frequency (in num timesteps)
-        self.save_model_freq = self.config.get('save_model_freq', int(1e5))
-
-        # starting std for action distribution (         )
-        self.action_std = self.config.get('action_std', 0.6)
-        # linearly decay action_std (action_std = action_std - action_std_decay_rate)
-        self.action_std_decay_rate = self.config.get(
-            'action_std_decay_rate', 0.05)
-        # minimum action_std (stop decay after action_std <= min_action_std)
-        self.min_action_std = self.config.get('min_action_std', 0.1)
-        # action_std decay frequency (in num timesteps)
-        self.action_std_decay_freq = self.config.get(
-            'action_std_decay_freq', int(2.5e5))
-        #####################################################
-
-        # Note : print/log frequencies should be > than max_ep_len
-
-        ################ PPO hyperparameters ################
-        # update policy every n timesteps
-        self.update_timestep = self.config.get(
-            'update_timestep', self.max_ep_len * 4)
-        # update policy for K epochs in one PPO update
-        self.K_epochs = self.config.get('K_epochs', 80)
-        # clip parameter for PPO
-        self.eps_clip = self.config.get('eps_clip', 0.2)
-        # discount factor
-        self.gamma = self.config.get('gamma', 0.99)
-        # learning rate for actor network
-        self.lr_actor = self.config.get('lr_actor', 0.0003)
-        # learning rate for critic network
-        self.lr_critic = self.config.get('lr_critic', 0.001)
-        # set random seed if required (0 = no random seed)
-        self.random_seed = self.config.get('random_seed', 0)
-        #####################################################
+        self._config_check()
 
         self.env = env
         # state space dimension
         self.state_dim = env.observation_space.shape[0]
-
         # action space dimension
         if self.has_continuous_action_space:
             self.action_dim = env.action_space.shape[0]
@@ -82,27 +44,28 @@ class Trainer:
         self.log_dir = "PPO_logs"
         if not os.path.exists(self.log_dir):
             os.makedirs(self.log_dir)
-
         self.log_dir = f'{self.log_dir}/{self.env_name}'
         if not os.path.exists(self.log_dir):
             os.makedirs(self.log_dir)
-
         # get number of log files in log directory
         current_num_files = next(os.walk(self.log_dir))[1]
-        self.run_num = self.config.get('run_num', len(current_num_files))
-        self.resume = self.config.get('resume', False)
-        self.config['run_num'] = self.run_num
-
+        self.run_num = self.config.setdefault(
+            'run_num', len(current_num_files))
         # create new log file for each run
         self.log_dir = f'{self.log_dir}/run_{self.run_num}'
-        if os.path.exists(self.log_dir) and not self.resume:
-            raise FileExistsError(f"{self.log_dir} already exists!")
+        if not self.resume:
+            if not os.path.exists(self.log_dir):
+                os.makedirs(self.log_dir)
+            else:
+                raise FileExistsError(f"{self.log_dir} already exists!")
         self.log_f_name = f"{self.log_dir}/reward.csv"
-
         print("current logging run number for " +
               self.env_name + " : ", self.run_num)
         print("logging at : " + self.log_f_name)
-
+        # logging file
+        self.log_f = open(self.log_f_name, "a+")
+        if not self.resume:
+            self.log_f.write('episode,timestep,reward\n')
         # tensorboard
         self.writer = tensorboardX.SummaryWriter(
             log_dir=self.log_dir)
@@ -119,8 +82,7 @@ class Trainer:
 
         ################# training procedure ################
         # initialize a PPO agent
-        self.ppo_agent = PPO(self.state_dim, self.action_dim, self.lr_actor, self.lr_critic, self.gamma,
-                             self.K_epochs, self.eps_clip, self.has_continuous_action_space, self.action_std)
+        self.ppo_agent = PPO(self.state_dim, self.action_dim, self.config)
         if self.resume:
             latest_checkpoint = max(
                 glob.glob(f'{self.log_dir}/checkpoints/*'), key=os.path.getctime)
@@ -129,24 +91,7 @@ class Trainer:
         # track total training time
         self.start_time = datetime.now().replace(microsecond=0)
         print("Started training at (GMT) : ", self.start_time)
-
         print("============================================================================================")
-
-        # logging file
-        self.log_f = open(self.log_f_name, "a+")
-        if not self.resume:
-            self.log_f.write('episode,timestep,reward\n')
-
-        # printing and logging variables
-        self.print_running_reward = self.config.get('print_running_reward', 0)
-        self.print_running_episodes = self.config.get(
-            'print_running_episodes', 0)
-
-        self.log_running_reward = self.config.get('log_running_reward', 0)
-        self.log_running_episodes = self.config.get('log_running_episodes', 0)
-
-        self.time_step = self.config.get('time_step', 0)
-        self.i_episode = self.config.get('i_episode', 0)
 
     def run(self):
         # training loop
@@ -236,6 +181,72 @@ class Trainer:
         print("Finished training at (GMT) : ", end_time)
         print("Total training time  : ", end_time - self.start_time)
         print("============================================================================================")
+
+    def _config_check(self):
+        ####### initialize environment hyperparameters ######
+        self.env_name = self.config['env_name']
+        # continuous action space; else discrete
+        self.has_continuous_action_space = self.config.setdefault(
+            'has_continuous_action_space', True)
+        # max timesteps in one episode
+        self.max_ep_len = self.config.setdefault('max_ep_len', 1000)
+        # break training loop if timeteps > max_training_timesteps
+        self.max_training_timesteps = self.config.setdefault(
+            'max_training_timesteps', int(1e7))
+
+        # print avg reward in the interval (in num timesteps)
+        self.print_freq = self.config.setdefault(
+            'print_freq', self.max_ep_len * 10)
+        # log avg reward in the interval (in num timesteps)
+        self.log_freq = self.config.setdefault('log_freq', self.max_ep_len * 2)
+        # save model frequency (in num timesteps)
+        self.save_model_freq = self.config.setdefault(
+            'save_model_freq', int(1e5))
+
+        # starting std for action distribution (         )
+        self.action_std = self.config.setdefault('action_std', 0.6)
+        # linearly decay action_std (action_std = action_std - action_std_decay_rate)
+        self.action_std_decay_rate = self.config.setdefault(
+            'action_std_decay_rate', 0.05)
+        # minimum action_std (stop decay after action_std <= min_action_std)
+        self.min_action_std = self.config.setdefault('min_action_std', 0.1)
+        # action_std decay frequency (in num timesteps)
+        self.action_std_decay_freq = self.config.setdefault(
+            'action_std_decay_freq', int(2.5e5))
+        #####################################################
+        ################ PPO hyperparameters ################
+        # update policy every n timesteps
+        self.update_timestep = self.config.setdefault(
+            'update_timestep', self.max_ep_len * 4)
+        # update policy for K epochs in one PPO update
+        self.K_epochs = self.config.setdefault('K_epochs', 80)
+        # clip parameter for PPO
+        self.eps_clip = self.config.setdefault('eps_clip', 0.2)
+        # discount factor
+        self.gamma = self.config.setdefault('gamma', 0.99)
+        # learning rate for actor network
+        self.lr_actor = self.config.setdefault('lr_actor', 0.0003)
+        # learning rate for critic network
+        self.lr_critic = self.config.setdefault('lr_critic', 0.001)
+        # set random seed if required (0 = no random seed)
+        self.random_seed = self.config.setdefault('random_seed', 0)
+        #####################################################
+        self.resume = self.config.setdefault('resume', False)
+        self.use_lstm = self.config.setdefault('use_lstm', False)
+        self.device = self.config.setdefault('device', device)
+        # printing and logging variables
+        self.print_running_reward = self.config.setdefault(
+            'print_running_reward', 0)
+        self.print_running_episodes = self.config.setdefault(
+            'print_running_episodes', 0)
+
+        self.log_running_reward = self.config.setdefault(
+            'log_running_reward', 0)
+        self.log_running_episodes = self.config.setdefault(
+            'log_running_episodes', 0)
+
+        self.time_step = self.config.setdefault('time_step', 0)
+        self.i_episode = self.config.setdefault('i_episode', 0)
 
     def _save(self):
         print(

@@ -1,61 +1,39 @@
-import os
 import glob
+import os
 import time
-from datetime import datetime
-
-import torch
-import numpy as np
-
+import argparse
+import yaml
+import imageio
 import gym
 from algorithm.PPO import PPO
 
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "--config",
+    type=str,
+    # default="configs/LunarLander-v2.yaml",
+    default="PPO_logs/LunarLander-v2/run_1/config.yaml",
+    help="The config file",
+)
 
-#################################### Testing ###################################
-def test():
+
+def test(args):
+    with open(args.config, 'r') as infile:
+        config = yaml.safe_load(infile)
     print("============================================================================================")
+    env_name = config['env_name']
+    has_continuous_action_space = config['has_continuous_action_space']
 
-    ################## hyperparameters ##################
-
-    # env_name = "CartPole-v1"
-    # has_continuous_action_space = False
-    # max_ep_len = 400
-    # action_std = None
-
-    # env_name = "LunarLander-v2"
-    # has_continuous_action_space = False
-    # max_ep_len = 300
-    # action_std = None
-
-    # env_name = "BipedalWalker-v2"
-    # has_continuous_action_space = True
-    # max_ep_len = 1500           # max timesteps in one episode
-    # action_std = 0.1            # set same std for action distribution which was used while saving
-
-    env_name = "LunarLander-v2"
-    has_continuous_action_space = True
     max_ep_len = 1000           # max timesteps in one episode
     # set same std for action distribution which was used while saving
     action_std = 0.1
-
     render = True              # render environment on screen
     frame_delay = 0             # if required; add delay b/w frames
-
     total_test_episodes = 10    # total num of testing episodes
 
-    K_epochs = 80               # update policy for K epochs
-    eps_clip = 0.2              # clip parameter for PPO
-    gamma = 0.99                # discount factor
-
-    lr_actor = 0.0003           # learning rate for actor
-    lr_critic = 0.001           # learning rate for critic
-
-    #####################################################
-
-    env = gym.make(env_name, render_mode="human", continuous=True)
-
+    env = gym.make(env_name, continuous=True)
     # state space dimension
     state_dim = env.observation_space.shape[0]
-
     # action space dimension
     if has_continuous_action_space:
         action_dim = env.action_space.shape[0]
@@ -63,24 +41,20 @@ def test():
         action_dim = env.action_space.n
 
     # initialize a PPO agent
-    ppo_agent = PPO(state_dim, action_dim, lr_actor, lr_critic, gamma,
-                    K_epochs, eps_clip, has_continuous_action_space, action_std)
-
-    # preTrained weights directory
-
-    random_seed = 0  # set this to load a particular checkpoint trained on random seed
-    run_num_pretrained = 0  # set this to load a particular checkpoint num
-
-    directory = "PPO_preTrained" + '/' + env_name + '/'
-    checkpoint_path = f"./PPO_logs/{env_name}/run_0/checkpoints/1608.pth"
-    print("loading network from : " + checkpoint_path)
-
-    ppo_agent.load(checkpoint_path)
+    ppo_agent = PPO(state_dim, action_dim, config)
+    # set to 0.1 when test
+    ppo_agent.action_std = action_std
+    log_dir = f"./PPO_logs/{env_name}/run_{config['run_num']}"
+    latest_checkpoint = max(
+        glob.glob(f'{log_dir}/checkpoints/*'), key=os.path.getctime)
+    latest_checkpoint = f'{log_dir}/checkpoints/30211.pth'
+    print(f"resume from {latest_checkpoint}")
+    ppo_agent.load(latest_checkpoint)
 
     print("--------------------------------------------------------------------------------------------")
 
     test_running_reward = 0
-
+    images = []
     for ep in range(1, total_test_episodes+1):
         ep_reward = 0
         state = env.reset()
@@ -91,7 +65,8 @@ def test():
             ep_reward += reward
 
             if render:
-                env.render()
+                env.render(mode="human")
+                images.append(env.render(mode='rgb_array'))
                 time.sleep(frame_delay)
 
             if done:
@@ -103,7 +78,7 @@ def test():
         test_running_reward += ep_reward
         print('Episode: {} \t\t Reward: {}'.format(ep, round(ep_reward, 2)))
         ep_reward = 0
-
+    imageio.mimsave(f'{log_dir}/test.gif', images)
     env.close()
 
     print("============================================================================================")
@@ -116,5 +91,5 @@ def test():
 
 
 if __name__ == '__main__':
-
-    test()
+    args = parser.parse_args()
+    test(args)
