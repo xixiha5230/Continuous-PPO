@@ -1,10 +1,10 @@
-K_epochs: 160
+K_epochs: 80
 action_std: 0.6
 action_std_decay_freq: 10
 action_std_decay_rate: 0.05
 min_action_std: 0.1
 device: cuda
-env_name: LunarLander-v2
+env_name: BipedalWalker-v3
 eps_clip: 0.2
 exp_name: lstm
 gamma: 0.99
@@ -26,4 +26,4 @@ recurrence:
 save_model_freq: 10
 worker:
   num_workers: 6
-  worker_steps: 1000
+  worker_steps: 1600

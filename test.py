@@ -5,16 +5,34 @@ import argparse
 import yaml
 import imageio
 import gym
+import torch
 from algorithm.PPO import PPO
+from utils.env_helper import create_env
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
     "--config",
     type=str,
     # default="configs/LunarLander-v2.yaml",
-    default="PPO_logs/LunarLander-v2/run_1/config.yaml",
+    default="PPO_logs/BipedalWalker-v3/init/run_1/config.yaml",
     help="The config file",
 )
+parser.add_argument(
+    "--save_gif",
+    action='store_true'
+)
+
+################################## set device ##################################
+print("============================================================================================")
+# set device to cpu or cuda
+device = 'cpu'
+if(torch.cuda.is_available()):
+    device = 'cuda'
+    torch.cuda.empty_cache()
+    print("Device set to : " + str(torch.cuda.get_device_name(device)))
+else:
+    print("Device set to : cpu")
+print("============================================================================================")
 
 
 def test(args):
@@ -26,28 +44,29 @@ def test(args):
 
     max_ep_len = 1000           # max timesteps in one episode
     # set same std for action distribution which was used while saving
-    action_std = 0.1
+    action_std = 0.001
     render = True              # render environment on screen
-    frame_delay = 0             # if required; add delay b/w frames
+    frame_delay = 0.01             # if required; add delay b/w frames
     total_test_episodes = 10    # total num of testing episodes
 
-    env = gym.make(env_name, continuous=True)
+    env = create_env(env_name, has_continuous_action_space)
     # state space dimension
-    state_dim = env.observation_space.shape[0]
+    state_dim = env.observation_space
     # action space dimension
     if has_continuous_action_space:
         action_dim = env.action_space.shape[0]
     else:
         action_dim = env.action_space.n
-
+    use_lstm = config['recurrence']['use_lstm']
+    exp_name = config['exp_name']
     # initialize a PPO agent
     ppo_agent = PPO(state_dim, action_dim, config)
-    # set to 0.1 when test
     ppo_agent.action_std = action_std
-    log_dir = f"./PPO_logs/{env_name}/run_{config['run_num']}"
+
+    log_dir = f"./PPO_logs/{env_name}/{exp_name}/run_{config['run_num']}"
     latest_checkpoint = max(
         glob.glob(f'{log_dir}/checkpoints/*'), key=os.path.getctime)
-    latest_checkpoint = f'{log_dir}/checkpoints/30211.pth'
+    # latest_checkpoint = f'{log_dir}/checkpoints/1864.pth'
     print(f"resume from {latest_checkpoint}")
     ppo_agent.load(latest_checkpoint)
 
@@ -58,27 +77,30 @@ def test(args):
     for ep in range(1, total_test_episodes+1):
         ep_reward = 0
         state = env.reset()
-
+        h_out = ppo_agent.init_recurrent_cell_states(1)
         for t in range(1, max_ep_len+1):
-            action = ppo_agent.select_action(state)
-            state, reward, done, info = env.step(action)
+            h_in = h_out
+            action, _, _, _, h_out = ppo_agent.select_action([state], h_in)
+            state, reward, done, info = env.step(action[0])
             ep_reward += reward
 
             if render:
                 env.render(mode="human")
-                images.append(env.render(mode='rgb_array'))
+                if args.save_gif:
+                    images.append(env.render(mode='rgb_array'))
                 time.sleep(frame_delay)
 
             if done:
                 break
 
         # clear buffer
-        ppo_agent.buffer.clear()
+        # ppo_agent.buffer.clear()
 
         test_running_reward += ep_reward
         print('Episode: {} \t\t Reward: {}'.format(ep, round(ep_reward, 2)))
         ep_reward = 0
-    imageio.mimsave(f'{log_dir}/test.gif', images)
+    if args.save_gif:
+        imageio.mimsave(f'{log_dir}/test.gif', images)
     env.close()
 
     print("============================================================================================")

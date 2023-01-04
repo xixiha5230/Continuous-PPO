@@ -2,29 +2,17 @@ import numpy as np
 import torch
 import torch.nn as nn
 from algorithm.ActorCritic import ActorCritic
+from replaybuffer.RolloutBuffer import RolloutBuffer
 
 
 ################################## PPO Policy ##################################
-class RolloutBuffer:
-    def __init__(self):
-        self.actions = []
-        self.states = []
-        self.logprobs = []
-        self.rewards = []
-        self.is_terminals = []
-
-    def clear(self):
-        del self.actions[:]
-        del self.states[:]
-        del self.logprobs[:]
-        del self.rewards[:]
-        del self.is_terminals[:]
-
-
 class PPO:
-    def __init__(self, state_dim, action_dim, config):
+    def __init__(self, obs_space, action_dim, config):
         self.config = config
-
+        self.conf_worker = config['worker']
+        self.conf_recurrence = config['recurrence']
+        self.conf_ppo = config['ppo']
+        self.use_lstm = self.conf_recurrence['use_lstm']
         self.has_continuous_action_space = config['has_continuous_action_space']
         if self.has_continuous_action_space:
             self.action_std = config['action_std']
@@ -35,15 +23,22 @@ class PPO:
         self.buffer = RolloutBuffer()
         lr_actor = config['lr_actor']
         lr_critic = config['lr_critic']
+        self.vf_loss_coeff = self.conf_ppo['vf_loss_coeff']
+        self.entropy_coeff = self.conf_ppo['entropy_coeff']
         self.device = config['device']
         self.policy = ActorCritic(
-            state_dim, action_dim, self.config).to(self.device)
-        self.optimizer = torch.optim.Adam([
+            obs_space, action_dim, self.config).to(self.device)
+        self.networks = [
+            {'params': self.policy.state.parameters(), 'lr': lr_actor},
             {'params': self.policy.actor.parameters(), 'lr': lr_actor},
             {'params': self.policy.critic.parameters(), 'lr': lr_critic}
-        ])
+        ]
+        if self.use_lstm:
+            self.networks.append(
+                {'params': self.policy.rnn.parameters(), 'lr': lr_actor})
+        self.optimizer = torch.optim.Adam(self.networks)
         self.policy_old = ActorCritic(
-            state_dim, action_dim, self.config).to(self.device)
+            obs_space, action_dim, self.config).to(self.device)
         self.policy_old.load_state_dict(self.policy.state_dict())
         self.MseLoss = nn.MSELoss()
 
@@ -77,100 +72,83 @@ class PPO:
                 "WARNING : Calling PPO::decay_action_std() on discrete action space policy")
         print("--------------------------------------------------------------------------------------------")
 
-    def select_action(self, state):
-        if self.has_continuous_action_space:
-            with torch.no_grad():
-                state = torch.FloatTensor(state).to(self.device)
-                action, action_logprob = self.policy_old.act(state)
+    def select_action(self, state, hidden_in=None):
+        with torch.no_grad():
+            state = torch.FloatTensor(np.array(state)).to(self.device)
+            action, action_logprob, hidden_out = self.policy_old.act(
+                state, hidden_in)
+            action_s = action.detach().cpu().numpy() \
+                if self.has_continuous_action_space else action.item()
+        return action_s, state, action, action_logprob, hidden_out
 
-            self.buffer.states.append(state)
-            self.buffer.actions.append(action)
-            self.buffer.logprobs.append(action_logprob)
-
-            return action.detach().cpu().numpy().flatten()
+    def _train_mini_batch(self, samples: dict) -> list:
+        """Uses one mini batch to optimize the model.
+        Args:
+            mini_batch {dict} -- The to be used mini batch data to optimize the model
+            learning_rate {float} -- Current learning rate
+            clip_range {float} -- Current clip range
+            beta {float} -- Current entropy bonus coefficient
+        Returns:
+            {list} -- list of trainig statistics (e.g. loss)
+        """
+        # Retrieve sampled recurrent cell states to feed the model
+        if self.conf_recurrence['use_lstm']:
+            if self.conf_recurrence["layer_type"] == "gru":
+                recurrent_cell = samples["hxs"].unsqueeze(0)
+            elif self.conf_recurrence["layer_type"] == "lstm":
+                recurrent_cell = (samples["hxs"].unsqueeze(
+                    0), samples["cxs"].unsqueeze(0))
         else:
-            with torch.no_grad():
-                state = torch.FloatTensor(state).to(self.device)
-                action, action_logprob = self.policy_old.act(state)
+            recurrent_cell = None
+        action_logprobs, state_values, dist_entropy = self.policy.evaluate(
+            samples["obs"], samples["actions"], recurrent_cell, self.conf_recurrence['sequence_length'])
+        state_values = torch.squeeze(state_values)
 
-            self.buffer.states.append(state)
-            self.buffer.actions.append(action)
-            self.buffer.logprobs.append(action_logprob)
+        rewards = samples["advantages"]
+        advantages = rewards - state_values.detach()
 
-            return action.item()
+        ratio = torch.exp(action_logprobs - samples["log_probs"].detach())
+        surr1 = ratio * advantages
+        surr2 = torch.clamp(ratio, 1.0 - self.eps_clip, 1.0 +
+                            self.eps_clip) * advantages
+        policy_loss = torch.min(surr1, surr2)
+        policy_loss = self._masked_mean(
+            policy_loss, samples["loss_mask"])
 
-    def update(self):
-        # Monte Carlo estimate of returns
-        rewards = []
-        discounted_reward = 0
-        for reward, is_terminal in zip(reversed(self.buffer.rewards), reversed(self.buffer.is_terminals)):
-            if is_terminal:
-                discounted_reward = 0
-            discounted_reward = reward + (self.gamma * discounted_reward)
-            rewards.insert(0, discounted_reward)
+        # vf_loss = self.MseLoss(state_values, rewards)
+        vf_loss = (state_values - rewards) ** 2
+        vf_loss = self._masked_mean(vf_loss, samples["loss_mask"])
 
-        # Normalizing the rewards
-        rewards = torch.tensor(rewards, dtype=torch.float32).to(self.device)
-        rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-7)
+        # Entropy Bonus
+        entropy_bonus = self._masked_mean(
+            dist_entropy, samples["loss_mask"])
 
-        # convert list to tensor
-        old_states = torch.squeeze(torch.stack(
-            self.buffer.states, dim=0)).detach().to(self.device)
-        old_actions = torch.squeeze(torch.stack(
-            self.buffer.actions, dim=0)).detach().to(self.device)
-        old_logprobs = torch.squeeze(torch.stack(
-            self.buffer.logprobs, dim=0)).detach().to(self.device)
+        # Complete loss
+        loss = -(policy_loss -
+                 self.vf_loss_coeff * vf_loss +
+                 self.entropy_coeff * entropy_bonus)
 
-        # loss list of epochs
-        actor_loss_mean = []
-        critic_loss_mean = []
-        dist_entropy_mean = []
-        total_loss_mean = []
+        self.optimizer.zero_grad()
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.policy.parameters(), max_norm=0.5)
+        self.optimizer.step()
 
-        # Optimize policy for K epochs
-        for _ in range(self.K_epochs):
+        return (policy_loss.detach().mean().item(),
+                vf_loss.detach().mean().item(),
+                loss.detach().mean().item(),
+                entropy_bonus.detach().mean().item())
 
-            # Evaluating old actions and values
-            logprobs, state_values, dist_entropy = self.policy.evaluate(
-                old_states, old_actions)
-
-            # match state_values tensor dimensions with rewards tensor
-            state_values = torch.squeeze(state_values)
-
-            # Finding the ratio (pi_theta / pi_theta__old)
-            ratios = torch.exp(logprobs - old_logprobs.detach())
-
-            # Finding Surrogate Loss
-            advantages = rewards - state_values.detach()
-            surr1 = ratios * advantages
-            surr2 = torch.clamp(ratios, 1-self.eps_clip,
-                                1+self.eps_clip) * advantages
-
-            # actor loss
-            actor_loss = -torch.min(surr1, surr2)
-            # critic loss
-            critic_loss = self.MseLoss(state_values, rewards)
-            # final loss of clipped objective PPO
-            loss = actor_loss + 0.5 * critic_loss - 0.01*dist_entropy
-
-            # take gradient step
-            self.optimizer.zero_grad()
-            loss.mean().backward()
-            self.optimizer.step()
-
-            # add to loss list
-            actor_loss_mean.append(actor_loss.detach().mean().item())
-            critic_loss_mean.append(critic_loss.detach().mean().item())
-            dist_entropy_mean.append(dist_entropy.detach().mean().item())
-            total_loss_mean.append(loss.detach().mean().item())
-
-        # Copy new weights into old policy
-        self.policy_old.load_state_dict(self.policy.state_dict())
-
-        # clear buffer
-        self.buffer.clear()
-
-        return np.mean(actor_loss_mean), np.mean(critic_loss_mean), np.mean(dist_entropy_mean), np.mean(total_loss_mean)
+    def _masked_mean(self, tensor: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        """
+        Returns the mean of the tensor but ignores the values specified by the mask.
+        This is used for masking out the padding of the loss functions.
+        Args:
+            tensor {Tensor} -- The to be masked tensor
+            mask {Tensor} -- The mask that is used to mask out padded values of a loss function
+        Returns:
+            {Tensor} -- Returns the mean of the masked tensor.
+        """
+        return (tensor.T * mask).sum() / torch.clamp((torch.ones_like(tensor.T) * mask).float().sum(), min=1.0)
 
     def save(self, checkpoint_path):
         torch.save(self.policy_old.state_dict(), checkpoint_path)
@@ -180,3 +158,24 @@ class PPO:
             checkpoint_path, map_location=lambda storage, loc: storage))
         self.policy.load_state_dict(torch.load(
             checkpoint_path, map_location=lambda storage, loc: storage))
+
+    def init_recurrent_cell_states(self, num_sequences) -> tuple:
+        """Initializes the recurrent cell states (hxs, cxs) as zeros.
+        Args:
+            num_sequences {int} -- The number of sequences determines the number of the to be generated initial recurrent cell states.
+        Returns:
+            {tuple} -- Depending on the used recurrent layer type, just hidden states (gru) or both hidden states and
+                     cell states are returned using initial values.
+        """
+        hidden_state_size = self.conf_recurrence['hidden_state_size']
+        layer_type = self.conf_recurrence["layer_type"]
+        hxs = torch.zeros(
+            (num_sequences), hidden_state_size, dtype=torch.float32, device=self.device).unsqueeze(0)
+        cxs = torch.zeros(
+            (num_sequences), hidden_state_size, dtype=torch.float32, device=self.device).unsqueeze(0)
+        if layer_type == "lstm":
+            return hxs, cxs
+        elif layer_type == 'gru':
+            return hxs
+        else:
+            raise NotImplementedError(layer_type)
