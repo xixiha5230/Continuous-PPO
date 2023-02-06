@@ -27,15 +27,19 @@ class Buffer():
         self.layer_type = config["recurrence"]["layer_type"]
         self.sequence_length = config["recurrence"]["sequence_length"]
         self.true_sequence_length = 0
+        self.has_continuous_action_space = config['has_continuous_action_space']
 
         # Initialize the buffer's data storage
         self.rewards = np.zeros(
             (self.n_workers, self.worker_steps), dtype=np.float32)
         self.dones = np.zeros(
             (self.n_workers, self.worker_steps), dtype=np.bool)
-        self.actions = torch.zeros(
-            (self.n_workers, self.worker_steps) + (action_dim, )).to(self.device)
-
+        if self.has_continuous_action_space:
+            self.actions = torch.zeros(
+                (self.n_workers, self.worker_steps) + (action_dim, )).to(self.device)
+        else:
+            self.actions = torch.zeros(
+                (self.n_workers, self.worker_steps)).to(self.device)
         self.obs = torch.zeros(
             (self.n_workers, self.worker_steps) + observation_space.shape).to(self.device)
         self.hxs = torch.zeros(

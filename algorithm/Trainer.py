@@ -321,7 +321,8 @@ class Trainer:
         # args need uodate
         self.conf['update'] = self.update
         self.conf['i_episode'] = self.i_episode
-        self.conf['action_std'] = self.ppo_agent.action_std
+        if self.has_continuous_action_space:
+            self.conf['action_std'] = self.ppo_agent.action_std
         self.conf['resume'] = True
 
         yaml_file = f'{self.log_dir}/config.yaml'

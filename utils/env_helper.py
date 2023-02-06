@@ -13,5 +13,7 @@ def create_env(env_name: str, continuous: bool = False):
         return gym.make(env_name, continuous=continuous)
     elif env_name == 'BipedalWalker-v3':
         return gym.make("BipedalWalker-v3")
+    elif env_name == 'CartPole-v1':
+        return gym.make("CartPole-v1")
     else:
         raise f"Unknow env: {env_name}"

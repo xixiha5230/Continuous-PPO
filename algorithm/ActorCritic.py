@@ -25,8 +25,8 @@ class ActorCritic(nn.Module):
             self.state = nn.Sequential(
                 nn.Linear(obs_space.shape[0], 64),
                 nn.Tanh(),
-                nn.Linear(64, 64),
-                nn.Tanh(),
+                # nn.Linear(64, 64),
+                # nn.Tanh(),
             )
         else:
             raise NotImplementedError(obs_space.shape)
@@ -40,22 +40,22 @@ class ActorCritic(nn.Module):
         # actor
         if self.has_continuous_action_space:
             self.actor = nn.Sequential(
-                nn.Linear(self.feature_dim, self.feature_dim),
-                nn.ReLU(),
+                # nn.Linear(self.feature_dim, self.feature_dim),
+                # nn.Tanh(),
                 nn.Linear(self.feature_dim, action_dim),
             )
         else:
             self.actor = nn.Sequential(
-                nn.Linear(self.feature_dim, self.feature_dim),
-                nn.ReLU(),
+                # nn.Linear(self.feature_dim, self.feature_dim),
+                # nn.Tanh(),
                 nn.Linear(self.feature_dim, action_dim),
                 nn.Softmax(dim=-1)
             )
 
         # critic
         self.critic = nn.Sequential(
-            nn.Linear(self.feature_dim, self.feature_dim),
-            nn.ReLU(),
+            # nn.Linear(self.feature_dim, self.feature_dim),
+            # nn.Tanh(),
             nn.Linear(self.feature_dim, 1)
         )
 

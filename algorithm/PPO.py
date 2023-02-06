@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from algorithm.ActorCritic import ActorCritic
 from replaybuffer.RolloutBuffer import RolloutBuffer
 
@@ -116,7 +117,8 @@ class PPO:
             policy_loss, samples["loss_mask"])
 
         # vf_loss = self.MseLoss(state_values, rewards)
-        vf_loss = (state_values - rewards) ** 2
+        # vf_loss = (state_values - rewards) ** 2
+        vf_loss = F.smooth_l1_loss(state_values, rewards)
         vf_loss = self._masked_mean(vf_loss, samples["loss_mask"])
 
         # Entropy Bonus
