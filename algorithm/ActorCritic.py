@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.distributions import MultivariateNormal
-from torch.distributions import Categorical
+from torch.distributions import Categorical, Normal
 
 
 class ActorCritic(nn.Module):
@@ -14,12 +14,10 @@ class ActorCritic(nn.Module):
         self.use_lstm = config['recurrence']['use_lstm']
         if self.use_lstm:
             self.hidden_state_size = config['recurrence']['hidden_state_size']
-        action_std_init = config['action_std']
 
         if self.has_continuous_action_space:
             self.action_dim = action_dim
-            self.action_var = torch.full(
-                (action_dim,), action_std_init * action_std_init).to(self.device)
+
         if len(obs_space.shape) == 1:
             # state
             self.state = nn.Sequential(
@@ -39,37 +37,24 @@ class ActorCritic(nn.Module):
             self.feature_dim = 64
         # actor
         if self.has_continuous_action_space:
-            self.actor = nn.Sequential(
-                # nn.Linear(self.feature_dim, self.feature_dim),
-                # nn.Tanh(),
+            self.mu = nn.Sequential(
                 nn.Linear(self.feature_dim, action_dim),
+                nn.Tanh(),
+            )
+            self.std = nn.Sequential(
+                nn.Linear(self.feature_dim, action_dim),
+                nn.Softplus(),
             )
         else:
-            self.actor = nn.Sequential(
-                # nn.Linear(self.feature_dim, self.feature_dim),
-                # nn.Tanh(),
+            self.mu = nn.Sequential(
                 nn.Linear(self.feature_dim, action_dim),
                 nn.Softmax(dim=-1)
             )
 
         # critic
         self.critic = nn.Sequential(
-            # nn.Linear(self.feature_dim, self.feature_dim),
-            # nn.Tanh(),
             nn.Linear(self.feature_dim, 1)
         )
-
-    def set_action_std(self, new_action_std):
-        if self.has_continuous_action_space:
-            self.action_var = torch.full(
-                (self.action_dim,), new_action_std * new_action_std).to(self.device)
-        else:
-            print(
-                "--------------------------------------------------------------------------------------------")
-            print(
-                "WARNING : Calling ActorCritic::set_action_std() on discrete action space policy")
-            print(
-                "--------------------------------------------------------------------------------------------")
 
     def forward(self):
         raise NotImplementedError
@@ -97,11 +82,13 @@ class ActorCritic(nn.Module):
             hidden_out = None
 
         if self.has_continuous_action_space:
-            action_mean = self.actor(feature)
-            cov_mat = torch.diag(self.action_var).unsqueeze(dim=0)
-            dist = MultivariateNormal(action_mean, cov_mat)
+            action_mean = 1.0*self.mu(feature)
+            action_std = self.std(feature)
+            dist = Normal(action_mean, action_std)
+            # cov_mat = torch.diag(self.action_var).unsqueeze(dim=0)
+            # dist = MultivariateNormal(action_mean, cov_mat)
         else:
-            action_probs = self.actor(feature)
+            action_probs = self.mu(feature)
             dist = Categorical(action_probs)
 
         action = dist.sample()
@@ -129,17 +116,18 @@ class ActorCritic(nn.Module):
                     out_shape[0] * out_shape[1], out_shape[2])
 
         if self.has_continuous_action_space:
-            action_mean = self.actor(feature)
-
-            action_var = self.action_var.expand_as(action_mean)
-            cov_mat = torch.diag_embed(action_var).to(self.device)
-            dist = MultivariateNormal(action_mean, cov_mat)
-
+            action_mean = self.mu(feature)
+            action_std = self.std(feature)
+            dist = Normal(action_mean, action_std)
+            # action_var = self.action_var.expand_as(action_mean)
+            # cov_mat = torch.diag_embed(action_var).to(self.device)
+            # dist = MultivariateNormal(action_mean, cov_mat)
+            
             # For Single Action Environments.
             if self.action_dim == 1:
                 action = action.reshape(-1, self.action_dim)
         else:
-            action_probs = self.actor(feature)
+            action_probs = self.mu(feature)
             dist = Categorical(action_probs)
         action_logprobs = dist.log_prob(action)
         dist_entropy = dist.entropy()

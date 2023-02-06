@@ -4,7 +4,7 @@ import time
 import argparse
 import yaml
 import imageio
-import gym
+import pygame
 import torch
 from algorithm.PPO import PPO
 from utils.env_helper import create_env
@@ -14,7 +14,7 @@ parser.add_argument(
     "--config",
     type=str,
     # default="configs/LunarLander-v2.yaml",
-    default="PPO_logs/BipedalWalker-v3/init/run_1/config.yaml",
+    default="PPO_logs/LunarLander-v2/continue/run_0/config.yaml",
     help="The config file",
 )
 parser.add_argument(
@@ -43,8 +43,6 @@ def test(args):
     has_continuous_action_space = config['has_continuous_action_space']
 
     max_ep_len = 1000           # max timesteps in one episode
-    # set same std for action distribution which was used while saving
-    action_std = 0.001
     render = True              # render environment on screen
     frame_delay = 0.01             # if required; add delay b/w frames
     total_test_episodes = 10    # total num of testing episodes
@@ -61,7 +59,6 @@ def test(args):
     exp_name = config['exp_name']
     # initialize a PPO agent
     ppo_agent = PPO(state_dim, action_dim, config)
-    ppo_agent.action_std = action_std
 
     log_dir = f"./PPO_logs/{env_name}/{exp_name}/run_{config['run_num']}"
     latest_checkpoint = max(
@@ -86,6 +83,7 @@ def test(args):
 
             if render:
                 env.render(mode="human")
+                pygame.event.get()
                 if args.save_gif:
                     images.append(env.render(mode='rgb_array'))
                 time.sleep(frame_delay)

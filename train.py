@@ -9,7 +9,7 @@ parser.add_argument(
     "--config",
     type=str,
     default="configs/LunarLander-v2.yaml",
-    # default="PPO_logs/LunarLander-v2/init/run_3/config.yaml",
+    # default="PPO_logs/LunarLander-v2/addstd/run_2/config.yaml",
     help="The config file",
 )
 parser.add_argument(
@@ -19,6 +19,8 @@ parser.add_argument(
     help="The experiment name",
 )
 
+# TODO
+# std 预测代替线性 完成
 # 添加 雷达 完成 图像
 # 添加 任务相关知识
 if __name__ == '__main__':

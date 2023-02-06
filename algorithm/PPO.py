@@ -15,8 +15,6 @@ class PPO:
         self.conf_ppo = config['ppo']
         self.use_lstm = self.conf_recurrence['use_lstm']
         self.has_continuous_action_space = config['has_continuous_action_space']
-        if self.has_continuous_action_space:
-            self.action_std = config['action_std']
 
         self.gamma = config['gamma']
         self.eps_clip = config['eps_clip']
@@ -31,9 +29,12 @@ class PPO:
             obs_space, action_dim, self.config).to(self.device)
         self.networks = [
             {'params': self.policy.state.parameters(), 'lr': lr_actor},
-            {'params': self.policy.actor.parameters(), 'lr': lr_actor},
+            {'params': self.policy.mu.parameters(), 'lr': lr_actor},
             {'params': self.policy.critic.parameters(), 'lr': lr_critic}
         ]
+        if self.has_continuous_action_space:
+            self.networks.append(
+                {'params': self.policy.std.parameters(), 'lr': lr_actor})
         if self.use_lstm:
             self.networks.append(
                 {'params': self.policy.rnn.parameters(), 'lr': lr_actor})
@@ -41,37 +42,6 @@ class PPO:
         self.policy_old = ActorCritic(
             obs_space, action_dim, self.config).to(self.device)
         self.policy_old.load_state_dict(self.policy.state_dict())
-        self.MseLoss = nn.MSELoss()
-
-    def set_action_std(self, new_action_std):
-        if self.has_continuous_action_space:
-            self.action_std = new_action_std
-            self.policy.set_action_std(new_action_std)
-            self.policy_old.set_action_std(new_action_std)
-        else:
-            print(
-                "--------------------------------------------------------------------------------------------")
-            print(
-                "WARNING : Calling PPO::set_action_std() on discrete action space policy")
-            print(
-                "--------------------------------------------------------------------------------------------")
-
-    def decay_action_std(self, action_std_decay_rate, min_action_std):
-        print("--------------------------------------------------------------------------------------------")
-        if self.has_continuous_action_space:
-            self.action_std = self.action_std - action_std_decay_rate
-            self.action_std = round(self.action_std, 4)
-            if (self.action_std <= min_action_std):
-                self.action_std = min_action_std
-                print(
-                    "setting actor output action_std to min_action_std : ", self.action_std)
-            else:
-                print("setting actor output action_std to : ", self.action_std)
-            self.set_action_std(self.action_std)
-        else:
-            print(
-                "WARNING : Calling PPO::decay_action_std() on discrete action space policy")
-        print("--------------------------------------------------------------------------------------------")
 
     def select_action(self, state, hidden_in=None):
         with torch.no_grad():
@@ -107,6 +77,7 @@ class PPO:
 
         rewards = samples["advantages"]
         advantages = rewards - state_values.detach()
+        advantages = advantages.unsqueeze(-1)
 
         ratio = torch.exp(action_logprobs - samples["log_probs"].detach())
         surr1 = ratio * advantages

@@ -47,7 +47,7 @@ class Buffer():
         self.cxs = torch.zeros(
             (self.n_workers, self.worker_steps, hidden_state_size)).to(self.device)
         self.log_probs = torch.zeros(
-            (self.n_workers, self.worker_steps)).to(self.device)
+            (self.n_workers, self.worker_steps) + (action_dim, )).to(self.device)
         # self.values = torch.zeros(
         #     (self.n_workers, self.worker_steps)).to(self.device)
         self.advantages = torch.zeros(

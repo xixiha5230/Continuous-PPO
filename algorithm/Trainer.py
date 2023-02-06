@@ -159,11 +159,6 @@ class Trainer:
             if self.update % self.save_model_freq == 0:
                 self._save()
 
-            # if continuous action space; then decay action std of ouput action distribution
-            if self.has_continuous_action_space and self.update % self.action_std_decay_freq == 0:
-                self.ppo_agent.decay_action_std(
-                    self.action_std_decay_rate, self.min_action_std)
-
     def _reset_env(self):
         num_workers = self.conf_worker['num_workers']
         obs = np.zeros(
@@ -285,16 +280,6 @@ class Trainer:
         # continuous action space; else discrete
         self.has_continuous_action_space = self.conf.setdefault(
             'has_continuous_action_space', True)
-        # starting std for action distribution
-        self.action_std = self.conf.setdefault('action_std', 0.6)
-        # linearly decay action_std (action_std = action_std - action_std_decay_rate)
-        self.action_std_decay_rate = self.conf.setdefault(
-            'action_std_decay_rate', 0.05)
-        # minimum action_std (stop decay after action_std <= min_action_std)
-        self.min_action_std = self.conf.setdefault('min_action_std', 0.1)
-        # action_std decay frequency (in num update)
-        self.action_std_decay_freq = self.conf.setdefault(
-            'action_std_decay_freq', 10)
 
         ############## LSTM hyperparameters #################
         recurrence = {}
@@ -321,8 +306,6 @@ class Trainer:
         # args need uodate
         self.conf['update'] = self.update
         self.conf['i_episode'] = self.i_episode
-        if self.has_continuous_action_space:
-            self.conf['action_std'] = self.ppo_agent.action_std
         self.conf['resume'] = True
 
         yaml_file = f'{self.log_dir}/config.yaml'
