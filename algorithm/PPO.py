@@ -48,8 +48,7 @@ class PPO:
             state = torch.FloatTensor(np.array(state)).to(self.device)
             action, action_logprob, hidden_out = self.policy_old.act(
                 state, hidden_in)
-            action_s = action.detach().cpu().numpy() \
-                if self.has_continuous_action_space else action.item()
+            action_s = action.detach().cpu().numpy()
         return action_s, state, action, action_logprob, hidden_out
 
     def _train_mini_batch(self, samples: dict) -> list:
@@ -87,7 +86,6 @@ class PPO:
         policy_loss = self._masked_mean(
             policy_loss, samples["loss_mask"])
 
-        # vf_loss = self.MseLoss(state_values, rewards)
         # vf_loss = (state_values - rewards) ** 2
         vf_loss = F.smooth_l1_loss(state_values, rewards)
         vf_loss = self._masked_mean(vf_loss, samples["loss_mask"])

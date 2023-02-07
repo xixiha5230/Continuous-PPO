@@ -20,7 +20,7 @@ parser.add_argument(
 )
 
 # TODO
-# std 预测代替线性 完成
+
 # 添加 雷达 完成 图像
 # 添加 任务相关知识
 if __name__ == '__main__':

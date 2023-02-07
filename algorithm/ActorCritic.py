@@ -23,8 +23,6 @@ class ActorCritic(nn.Module):
             self.state = nn.Sequential(
                 nn.Linear(obs_space.shape[0], 64),
                 nn.Tanh(),
-                # nn.Linear(64, 64),
-                # nn.Tanh(),
             )
         else:
             raise NotImplementedError(obs_space.shape)
@@ -47,12 +45,16 @@ class ActorCritic(nn.Module):
             )
         else:
             self.mu = nn.Sequential(
+                nn.Linear(self.feature_dim, self.feature_dim),
+                nn.ReLU(),
                 nn.Linear(self.feature_dim, action_dim),
                 nn.Softmax(dim=-1)
             )
 
         # critic
         self.critic = nn.Sequential(
+            nn.Linear(self.feature_dim, self.feature_dim),
+            nn.ReLU(),
             nn.Linear(self.feature_dim, 1)
         )
 
@@ -85,8 +87,6 @@ class ActorCritic(nn.Module):
             action_mean = 1.0*self.mu(feature)
             action_std = self.std(feature)
             dist = Normal(action_mean, action_std)
-            # cov_mat = torch.diag(self.action_var).unsqueeze(dim=0)
-            # dist = MultivariateNormal(action_mean, cov_mat)
         else:
             action_probs = self.mu(feature)
             dist = Categorical(action_probs)
@@ -119,10 +119,7 @@ class ActorCritic(nn.Module):
             action_mean = self.mu(feature)
             action_std = self.std(feature)
             dist = Normal(action_mean, action_std)
-            # action_var = self.action_var.expand_as(action_mean)
-            # cov_mat = torch.diag_embed(action_var).to(self.device)
-            # dist = MultivariateNormal(action_mean, cov_mat)
-            
+
             # For Single Action Environments.
             if self.action_dim == 1:
                 action = action.reshape(-1, self.action_dim)
