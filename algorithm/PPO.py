@@ -3,7 +3,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from algorithm.ActorCritic import ActorCritic
-from replaybuffer.RolloutBuffer import RolloutBuffer
 
 
 ################################## PPO Policy ##################################
@@ -19,7 +18,6 @@ class PPO:
         self.gamma = config['gamma']
         self.eps_clip = config['eps_clip']
         self.K_epochs = config['K_epochs']
-        self.buffer = RolloutBuffer()
         lr_actor = config['lr_actor']
         lr_critic = config['lr_critic']
         self.vf_loss_coeff = self.conf_ppo['vf_loss_coeff']
@@ -45,10 +43,15 @@ class PPO:
 
     def select_action(self, state, hidden_in=None):
         with torch.no_grad():
-            state = torch.FloatTensor(np.array(state)).to(self.device)
+            if isinstance(state, list):
+                state = [torch.FloatTensor(np.array([s[i] for s in state])).to(self.device)
+                         for i in range(len(state[0]))]
+            else:
+                state = torch.FloatTensor(np.array(state)).to(self.device)
             action, action_logprob, hidden_out = self.policy_old.act(
                 state, hidden_in)
             action_s = action.detach().cpu().numpy()
+            
         return action_s, state, action, action_logprob, hidden_out
 
     def _train_mini_batch(self, samples: dict) -> list:

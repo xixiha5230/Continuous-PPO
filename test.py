@@ -6,6 +6,7 @@ import yaml
 import imageio
 import pygame
 import torch
+import numpy as np
 from algorithm.PPO import PPO
 from utils.env_helper import create_env
 
@@ -77,7 +78,8 @@ def test(args):
         h_out = ppo_agent.init_recurrent_cell_states(1)
         for t in range(1, max_ep_len+1):
             h_in = h_out
-            action, _, _, _, h_out = ppo_agent.select_action([state], h_in)
+            action, _, _, _, h_out = ppo_agent.select_action(
+                np.array([state]), h_in)
             state, reward, done, info = env.step(action[0])
             ep_reward += reward
 

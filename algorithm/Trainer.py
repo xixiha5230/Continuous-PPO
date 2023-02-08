@@ -12,6 +12,7 @@ from algorithm.PPO import PPO
 from utils.env_helper import create_env
 from replaybuffer.Buffer import Buffer
 from worker.Worker import Worker
+from gym import spaces
 
 ################################## set device ##################################
 print("============================================================================================")
@@ -60,7 +61,7 @@ class Trainer:
         print("Step 4: Init environment workers")
         num_workers = self.conf_worker['num_workers']
         self.workers = [Worker(
-            self.env_name, self.has_continuous_action_space) for w in range(num_workers)]
+            self.env_name, self.has_continuous_action_space, w) for w in range(num_workers)]
 
         if self.random_seed != 0:
             # TODO 设置seed会导致效果不好
@@ -70,7 +71,7 @@ class Trainer:
 
         # Reset workers (i.e. environments)
         print("Step 5: Reset workers")
-        # PASS
+        self.obs, self.recurrent_cell = self._reset_env()
 
         # log files for multiple runs are NOT overwritten
         print("Step 6: Set logs")
@@ -161,8 +162,12 @@ class Trainer:
 
     def _reset_env(self):
         num_workers = self.conf_worker['num_workers']
-        obs = np.zeros(
-            (num_workers,) + self.obs_space.shape, dtype=np.float32)
+        if isinstance(self.obs_space, spaces.Tuple):
+            obs = [[np.zeros(t.shape, dtype=np.float32)
+                    for t in self.obs_space] for _ in range(num_workers)]
+        else:
+            obs = np.zeros(
+                (num_workers,) + self.obs_space.shape, dtype=np.float32)
         # reset env
         for worker in self.workers:
             worker.child.send(("reset", None))
@@ -181,26 +186,29 @@ class Trainer:
         episode_infos = []
         episode_start = np.zeros(
             (self.conf_worker['num_workers']), dtype=np.int64)
-        obs, recurrent_cell = self._reset_env()
-
+        
         # Sample actions from the model and collect experiences for training
         for t in range(self.conf_worker['worker_steps']):
             # Gradients can be omitted for sampling training data
             with torch.no_grad():
+
                 if self.conf_recurrence['use_lstm']:
                     if self.conf_recurrence["layer_type"] == "gru":
-                        self.buffer.hxs[:, t] = recurrent_cell.squeeze(0)
+                        self.buffer.hxs[:, t] = self.recurrent_cell.squeeze(0)
                     elif self.conf_recurrence["layer_type"] == "lstm":
                         self.buffer.hxs[:,
-                                        t] = recurrent_cell[0].squeeze(0)
+                                        t] = self.recurrent_cell[0].squeeze(0)
                         self.buffer.cxs[:,
-                                        t] = recurrent_cell[1].squeeze(0)
+                                        t] = self.recurrent_cell[1].squeeze(0)
 
                 # Forward the model
-                action, state_t, action_t, action_logprob_t, recurrent_cell = self.ppo_agent.select_action(
-                    obs, recurrent_cell)
+                action, state_t, action_t, action_logprob_t, self.recurrent_cell = self.ppo_agent.select_action(
+                    self.obs, self.recurrent_cell)
 
-                self.buffer.obs[:, t] = state_t
+                if isinstance(state_t, list):
+                    self.buffer.obs[t] = state_t
+                else:
+                    self.buffer.obs[:, t] = state_t
                 self.buffer.actions[:, t] = action_t
                 self.buffer.log_probs[:, t] = action_logprob_t
 
@@ -224,10 +232,10 @@ class Trainer:
                     obs_w = worker.child.recv()
                     # Reset recurrent cell states
                     if self.conf_recurrence['use_lstm'] and self.conf_recurrence["reset_hidden_state"]:
-                        recurrent_cell[:, w] = self.ppo_agent.init_recurrent_cell_states(
+                        self.recurrent_cell[:, w] = self.ppo_agent.init_recurrent_cell_states(
                             1)
                 # Store latest observations
-                obs[w] = obs_w
+                self.obs[w] = obs_w
 
         # Calculate advantages
         self.buffer.calc_advantages(self.gamma)

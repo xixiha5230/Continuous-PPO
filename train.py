@@ -8,7 +8,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     "--config",
     type=str,
-    default="configs/LunarLander-v2.yaml",
+    default="configs/LunarLander-v2_continue.yaml",
     # default="PPO_logs/LunarLander-v2/addstd/run_2/config.yaml",
     help="The config file",
 )
@@ -20,9 +20,8 @@ parser.add_argument(
 )
 
 # TODO
-
-# 添加 雷达 完成 图像
-# 添加 任务相关知识
+# 添加 雷达、图像支持  完成
+# 添加 任务相关知识    进行中
 if __name__ == '__main__':
     args = parser.parse_args()
     trainer = Trainer(args)

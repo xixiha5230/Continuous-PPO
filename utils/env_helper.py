@@ -1,7 +1,8 @@
 import gym
+from utils.UnityWrapper import UnityWrapper
 
 
-def create_env(env_name: str, continuous: bool = False):
+def create_env(env_name: str, continuous: bool = False, id: int = 0):
     """Initializes an environment based on the provided environment name.
 
     Args:
@@ -15,5 +16,7 @@ def create_env(env_name: str, continuous: bool = False):
         return gym.make("BipedalWalker-v3")
     elif env_name == 'CartPole-v1':
         return gym.make("CartPole-v1")
+    elif env_name == 'CarRace':
+        return UnityWrapper(file_name="./Envs/CarRace", worker_id=id)
     else:
         raise f"Unknow env: {env_name}"

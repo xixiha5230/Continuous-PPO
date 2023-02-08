@@ -3,7 +3,7 @@ import multiprocessing.connection
 from utils.env_helper import create_env
 
 
-def worker_process(remote: multiprocessing.connection.Connection, env_name: str, continuous) -> None:
+def worker_process(remote: multiprocessing.connection.Connection, env_name: str, continuous: bool, id: int) -> None:
     """Executes the threaded interface to the environment.
 
     Args:
@@ -12,7 +12,7 @@ def worker_process(remote: multiprocessing.connection.Connection, env_name: str,
     """
     # Spawn environment
     try:
-        env = create_env(env_name, continuous)
+        env = create_env(env_name, continuous, id)
     except KeyboardInterrupt:
         pass
 
@@ -39,12 +39,12 @@ class Worker:
     child: multiprocessing.connection.Connection
     process: multiprocessing.Process
 
-    def __init__(self, env_name: str, continuous):
+    def __init__(self, env_name: str, continuous: bool, id: int):
         """
         Args:
             env_name (str) -- Name of the to be instantiated environment
         """
         self.child, parent = multiprocessing.Pipe()
         self.process = multiprocessing.Process(
-            target=worker_process, args=(parent, env_name, continuous))
+            target=worker_process, args=(parent, env_name, continuous, id))
         self.process.start()

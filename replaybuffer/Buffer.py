@@ -40,8 +40,12 @@ class Buffer():
         else:
             self.actions = torch.zeros(
                 (self.n_workers, self.worker_steps)).to(self.device)
-        self.obs = torch.zeros(
-            (self.n_workers, self.worker_steps) + observation_space.shape).to(self.device)
+        if isinstance(observation_space, spaces.Tuple):
+            self.obs = [[torch.zeros(
+                (self.n_workers,) + t.shape).to(self.device) for t in observation_space] for _ in range(self.worker_steps)]
+        else:
+            self.obs = torch.zeros(
+                (self.n_workers, self.worker_steps) + observation_space.shape).to(self.device)
         self.hxs = torch.zeros(
             (self.n_workers, self.worker_steps, hidden_state_size)).to(self.device)
         self.cxs = torch.zeros(
@@ -90,24 +94,32 @@ class Buffer():
         # Split obs, values, advantages, recurrent cell states, actions and log_probs into episodes and then into sequences
         max_sequence_length = 1
         for key, value in samples.items():
+            if isinstance(value, list):
+                value = [torch.stack([value[i][j] for i in range(
+                    len(value))], axis=1) for j in range(len(value[0]))]
             sequences = []
             for w in range(self.n_workers):
                 start_index = 0
                 for done_index in episode_done_indices[w]:
                     # Split trajectory into episodes
-                    episode = value[w, start_index:done_index + 1]
+                    if isinstance(value, list):
+                        episode = [v[w, start_index:done_index + 1]
+                                   for v in value]
+                    else:
+                        episode = value[w, start_index:done_index + 1]
                     start_index = done_index + 1
                     # Split episodes into sequences
                     if self.sequence_length > 0:
-                        for start in range(0, len(episode), self.sequence_length):
+                        for start in range(0, len(episode[0]) if isinstance(episode, list) else len(episode), self.sequence_length):
                             end = start + self.sequence_length
-                            sequences.append(episode[start:end])
+                            sequences.append([e[start:end] for e in episode] if isinstance(
+                                episode, list) else episode[start:end])
                         max_sequence_length = self.sequence_length
                     else:
                         # If the sequence length is not set to a proper value, sequences will be based on whole episodes
                         sequences.append(episode)
-                        max_sequence_length = len(episode) if len(
-                            episode) > max_sequence_length else max_sequence_length
+                        max_sequence_length = len(episode) if (len(episode[0]) if isinstance(episode, list) else len(
+                            episode) > max_sequence_length) else max_sequence_length
 
             # Apply zero-padding to ensure that each sequence has the same length
             # Therfore we can train batches of sequences in parallel instead of one sequence at a time
@@ -115,7 +127,11 @@ class Buffer():
                 sequences[i] = self.pad_sequence(sequence, max_sequence_length)
 
             # Stack sequences (target shape: (Sequence, Step, Data ...) and apply data to the samples dictionary
-            samples[key] = torch.stack(sequences, axis=0)
+            if isinstance(sequences[0], list):
+                samples[key] = [torch.stack([sequences[j][i] for j in range(
+                    len(sequences))], axis=0) for i in range(len(sequences[0]))]
+            else:
+                samples[key] = torch.stack(sequences, axis=0)
 
             if (key == "hxs" or key == "cxs"):
                 # Select only the very first recurrent cell state of a sequence and add it to the samples.
@@ -129,8 +145,13 @@ class Buffer():
         self.samples_flat = {}
         for key, value in samples.items():
             if not key == "hxs" and not key == "cxs":
-                value = value.reshape(
-                    value.shape[0] * value.shape[1], *value.shape[2:])
+                if isinstance(value, list):
+                    for i, v in enumerate(value):
+                        value[i] = v.reshape(
+                            v.shape[0] * v.shape[1], *v.shape[2:])
+                else:
+                    value = value.reshape(
+                        value.shape[0] * value.shape[1], *value.shape[2:])
             self.samples_flat[key] = value
 
     def pad_sequence(self, sequence: np.ndarray, target_length: int) -> np.ndarray:
@@ -144,20 +165,35 @@ class Buffer():
             {torch.tensor} -- Returns the padded sequence
         """
         # Determine the number of zeros that have to be added to the sequence
-        delta_length = target_length - len(sequence)
+        delta_length = target_length - \
+            len(sequence[0] if isinstance(sequence, list) else sequence)
         # If the sequence is already as long as the target length, don't pad
         if delta_length <= 0:
             return sequence
         # Construct array of zeros
-        if len(sequence.shape) > 1:
-            # Case: pad multi-dimensional array (e.g. visual observation)
-            padding = torch.zeros(
-                ((delta_length,) + sequence.shape[1:]), dtype=sequence.dtype).to(self.device)
+        if isinstance(sequence, list):
+            res = []
+            for s in sequence:
+                if len(s.shape) > 1:
+                    # Case: pad multi-dimensional array (e.g. visual observation)
+                    padding = torch.zeros(
+                        ((delta_length,) + s.shape[1:]), dtype=s.dtype).to(self.device)
+                else:
+                    padding = torch.zeros(
+                        delta_length, dtype=s.dtype).to(self.device)
+                # Concatenate the zeros to the sequence
+                res.append(torch.cat((s, padding), axis=0))
+            return res
         else:
-            padding = torch.zeros(
-                delta_length, dtype=sequence.dtype).to(self.device)
-        # Concatenate the zeros to the sequence
-        return torch.cat((sequence, padding), axis=0)
+            if len(sequence.shape) > 1:
+                # Case: pad multi-dimensional array (e.g. visual observation)
+                padding = torch.zeros(
+                    ((delta_length,) + sequence.shape[1:]), dtype=sequence.dtype).to(self.device)
+            else:
+                padding = torch.zeros(
+                    delta_length, dtype=sequence.dtype).to(self.device)
+            # Concatenate the zeros to the sequence
+            return torch.cat((sequence, padding), axis=0)
 
     def recurrent_mini_batch_generator(self) -> dict:
         """A recurrent generator that returns a dictionary providing training data arranged in mini batches.
@@ -168,7 +204,7 @@ class Buffer():
         """
         # Determine the number of sequences per mini batch
         num_sequences = len(
-            self.samples_flat["obs"]) // self.true_sequence_length
+            self.samples_flat["actions"]) // self.true_sequence_length
         num_sequences_per_batch = num_sequences // self.n_mini_batches
         # Arrange a list that determines the sequence count for each mini batch
         num_sequences_per_batch = [
@@ -192,7 +228,12 @@ class Buffer():
             mini_batch = {}
             for key, value in self.samples_flat.items():
                 if key != "hxs" and key != "cxs":
-                    mini_batch[key] = value[mini_batch_indices].to(self.device)
+                    if isinstance(value, list):
+                        mini_batch[key] = [v[mini_batch_indices].to(
+                            self.device) for v in value]
+                    else:
+                        mini_batch[key] = value[mini_batch_indices].to(
+                            self.device)
                 else:
                     # Collect only the recurrent cell states that are at the beginning of a sequence
                     mini_batch[key] = value[sequence_indices[start:end]].to(

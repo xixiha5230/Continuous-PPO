@@ -5,7 +5,6 @@ eps_clip: 0.2
 exp_name: discrete_new
 gamma: 0.99
 has_continuous_action_space: false
-i_episode: 6733
 lr_actor: 0.0003
 lr_critic: 0.001
 max_updates: 200
@@ -20,10 +19,7 @@ recurrence:
   reset_hidden_state: true
   sequence_length: 64
   use_lstm: false
-resume: true
-run_num: 1
 save_model_freq: 10
-update: 200
 worker:
   num_workers: 6
   worker_steps: 1000

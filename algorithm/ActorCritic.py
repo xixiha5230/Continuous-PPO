@@ -2,10 +2,12 @@ import torch
 import torch.nn as nn
 from torch.distributions import MultivariateNormal
 from torch.distributions import Categorical, Normal
+from layers.StateNet import StateNetIR
+from gym import spaces
 
 
 class ActorCritic(nn.Module):
-    def __init__(self, obs_space, action_dim, config):
+    def __init__(self, obs_space, action_dim: int, config: dict):
         super(ActorCritic, self).__init__()
         self.config = config
 
@@ -17,8 +19,9 @@ class ActorCritic(nn.Module):
 
         if self.has_continuous_action_space:
             self.action_dim = action_dim
-
-        if len(obs_space.shape) == 1:
+        if isinstance(obs_space, spaces.Tuple):
+            self.state = StateNetIR(obs_space, 64)
+        elif len(obs_space.shape) == 1:
             # state
             self.state = nn.Sequential(
                 nn.Linear(obs_space.shape[0], 64),
