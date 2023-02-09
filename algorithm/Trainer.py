@@ -14,18 +14,6 @@ from replaybuffer.Buffer import Buffer
 from worker.Worker import Worker
 from gym import spaces
 
-################################## set device ##################################
-print("============================================================================================")
-# set device to cpu or cuda
-device = 'cpu'
-if(torch.cuda.is_available()):
-    device = 'cuda'
-    torch.cuda.empty_cache()
-    print("Device set to : " + str(torch.cuda.get_device_name(device)))
-else:
-    print("Device set to : cpu")
-print("============================================================================================")
-
 
 class Trainer:
     def __init__(self, args) -> None:
@@ -43,19 +31,19 @@ class Trainer:
         dummy_env = create_env(self.env_name, self.has_continuous_action_space)
         self.obs_space = dummy_env.observation_space
         if self.has_continuous_action_space:
-            self.action_dim = dummy_env.action_space.shape[0]
+            self.action_space = dummy_env.action_space
         else:
-            self.action_dim = dummy_env.action_space.n
+            self.action_space = dummy_env.action_space.n
         dummy_env.close()
 
         # Init buffer
         print("Step 2: Init buffer")
-        self.buffer = Buffer(self.conf, self.obs_space, self.action_dim)
+        self.buffer = Buffer(self.conf, self.obs_space, self.action_space)
 
         # Init a PPO agent
         print("Step 3: Init model and optimizer")
         self.ppo_agent = PPO(self.obs_space,
-                             self.action_dim, self.conf)
+                             self.action_space, self.conf)
 
         # Init workers
         print("Step 4: Init environment workers")
@@ -140,24 +128,33 @@ class Trainer:
                 self.ppo_agent.policy.state_dict())
 
             self.i_episode += len(sampled_episode_info)
+            episode_result = Trainer._process_episode_info(
+                sampled_episode_info)
             self.writer.add_scalar(
-                "Loss/actor", np.mean(actor_loss_mean), self.i_episode)
+                "Loss/actor", np.mean(actor_loss_mean), self.update)
             self.writer.add_scalar(
-                "Loss/critic", np.mean(critic_loss_mean), self.i_episode)
+                "Loss/critic", np.mean(critic_loss_mean), self.update)
             self.writer.add_scalar(
-                "Loss/total", np.mean(total_loss_mean), self.i_episode)
+                "Loss/total", np.mean(total_loss_mean), self.update)
             self.writer.add_scalar(
-                "entropy", np.mean(dist_entropy_mean), self.i_episode)
-            self.writer.add_scalar(
-                "reward", np.mean(sampled_episode_info), self.i_episode)
-            print(
-                f'update: {self.update}\t episode: {self.i_episode}\t reward: {np.mean(sampled_episode_info)}')
-            # write to file
-            self.log_f.write(
-                f'{self.update},\t{self.i_episode},\t{np.mean(sampled_episode_info)}\n')
+                "Loss/entropy", np.mean(dist_entropy_mean), self.update)
+            if(len(episode_result) > 0):
+                self.writer.add_scalar(
+                    "Train/reward_mean", episode_result['reward_mean'], self.update)
+                self.writer.add_scalar(
+                    "Train/reward_std", episode_result['reward_std'], self.update)
+                self.writer.add_scalar(
+                    "Train/length_mean", episode_result['length_mean'], self.update)
+                self.writer.add_scalar(
+                    "Train/length_std", episode_result['length_std'], self.update)
+                print(
+                    f'update: {self.update}\t episode: {self.i_episode}\t reward: {episode_result["reward_mean"]}')
+                # write to file
+                self.log_f.write(
+                    f'{self.update},\t{self.i_episode},\t{episode_result["reward_mean"]}\n')
             self.log_f.flush()
             # save model weights
-            if self.update % self.save_model_freq == 0:
+            if self.update != 0 and self.update % self.save_model_freq == 0:
                 self._save()
 
     def _reset_env(self):
@@ -184,9 +181,6 @@ class Trainer:
             {list} -- list of results of completed episodes.
         """
         episode_infos = []
-        episode_start = np.zeros(
-            (self.conf_worker['num_workers']), dtype=np.int64)
-        
         # Sample actions from the model and collect experiences for training
         for t in range(self.conf_worker['worker_steps']):
             # Gradients can be omitted for sampling training data
@@ -202,7 +196,7 @@ class Trainer:
                                         t] = self.recurrent_cell[1].squeeze(0)
 
                 # Forward the model
-                action, state_t, action_t, action_logprob_t, self.recurrent_cell = self.ppo_agent.select_action(
+                action, state_t, action_t, action_logprob_t, value_t, self.recurrent_cell = self.ppo_agent.select_action(
                     self.obs, self.recurrent_cell)
 
                 if isinstance(state_t, list):
@@ -211,7 +205,7 @@ class Trainer:
                     self.buffer.obs[:, t] = state_t
                 self.buffer.actions[:, t] = action_t
                 self.buffer.log_probs[:, t] = action_logprob_t
-
+                self.buffer.values[:, t] = value_t
             # Send actions to the environments
             for w, worker in enumerate(self.workers):
                 worker.child.send(("step", action[w]))
@@ -221,11 +215,9 @@ class Trainer:
                 obs_w, reward_w, done_w, info = worker.child.recv()
                 self.buffer.rewards[w, t] = reward_w
                 self.buffer.dones[w, t] = done_w
-                if done_w:
+                if info:
                     # Store the information of the completed episode (e.g. total reward, episode length)
-                    episode_infos.append(
-                        self.buffer.rewards[w, episode_start[w]:t+1].sum())
-                    episode_start[w] = t+1
+                    episode_infos.append(info)
                     # Reset agent (potential interface for providing reset parameters)
                     worker.child.send(("reset", None))
                     # Get data from reset
@@ -238,11 +230,38 @@ class Trainer:
                 self.obs[w] = obs_w
 
         # Calculate advantages
-        self.buffer.calc_advantages(self.gamma)
+        _, _, _, _, last_value_t, _ = self.ppo_agent.select_action(
+            self.obs, self.recurrent_cell)
+        self.buffer.calc_advantages(last_value_t, self.gamma, 0.95)
         return episode_infos
 
-    def close(self):
-        self._save()
+    @staticmethod
+    def _process_episode_info(episode_info: list) -> dict:
+        """Extracts the mean and std of completed episode statistics like length and total reward.
+
+        Args:
+            episode_info {list} -- list of dictionaries containing results of completed episodes during the sampling phase
+
+        Returns:
+            {dict} -- Processed episode results (computes the mean and std for most available keys)
+        """
+        result = {}
+        if len(episode_info) > 0:
+            for key in episode_info[0].keys():
+                if key == "success":
+                    # This concerns the PocMemoryEnv only
+                    episode_result = [info[key] for info in episode_info]
+                    result[key +
+                           "_percent"] = np.sum(episode_result) / len(episode_result)
+                result[key + "_mean"] = np.mean([info[key]
+                                                for info in episode_info])
+                result[key + "_std"] = np.std([info[key]
+                                              for info in episode_info])
+        return result
+
+    def close(self, done=True):
+        if not done:
+            self._save()
         self.writer.close()
         for worker in self.workers:
             worker.child.send(("close", None))
@@ -256,13 +275,25 @@ class Trainer:
         exit(0)
 
     def _config_check(self):
+        ################################## set device ##################################
+        print("============================================================================================")
+        # set device to cpu or cuda
+        device = 'cpu'
+        if(torch.cuda.is_available()):
+            device = 'cuda'
+            torch.cuda.empty_cache()
+            print("Device set to : " + str(torch.cuda.get_device_name(device)))
+        else:
+            print("Device set to : cpu")
+        print("============================================================================================")
+
         ####### initialize environment hyperparameters ######
         self.env_name = self.conf['env_name']
         self.exp_name = self.conf.setdefault('exp_name', self.args.exp_name)
         # max updates times
         self.max_updates = self.conf.setdefault('max_updates', 150)
-        self.update = self.conf.setdefault('update', 1)
-        self.i_episode = self.conf.setdefault('i_episode', 1)
+        self.update = self.conf.setdefault('update', 0)
+        self.i_episode = self.conf.setdefault('i_episode', 0)
         # save model frequency (in num update)
         self.save_model_freq = self.conf.setdefault('save_model_freq', 5)
         self.resume = self.conf.setdefault('resume', False)
@@ -288,6 +319,9 @@ class Trainer:
         # continuous action space; else discrete
         self.has_continuous_action_space = self.conf.setdefault(
             'has_continuous_action_space', True)
+        self.hidden_layer_size = self.conf.setdefault(
+            'hidden_layer_size', 256
+        )
 
         ############## LSTM hyperparameters #################
         recurrence = {}
@@ -307,7 +341,7 @@ class Trainer:
     def _save(self):
         print(
             "--------------------------------------------------------------------------------------------")
-        checkpoint_file = f"{self.checkpoint_path}/{self.i_episode}.pth"
+        checkpoint_file = f"{self.checkpoint_path}/{self.update}.pth"
         print("saving model at : " + checkpoint_file)
         self.ppo_agent.save(checkpoint_file)
 
@@ -324,4 +358,4 @@ class Trainer:
             "--------------------------------------------------------------------------------------------")
 
     def _signal_handler(self, sig, frame):
-        self.close()
+        self.close(done=False)

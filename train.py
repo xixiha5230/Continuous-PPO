@@ -8,8 +8,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     "--config",
     type=str,
-    default="configs/LunarLander-v2_continue.yaml",
-    # default="PPO_logs/LunarLander-v2/addstd/run_2/config.yaml",
+    default="configs/LunarLander-v2.yaml",
+    # default="PPO_logs/LunarLander-v2/lstm/run_6/config.yaml",
     help="The config file",
 )
 parser.add_argument(

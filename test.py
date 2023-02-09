@@ -15,7 +15,7 @@ parser.add_argument(
     "--config",
     type=str,
     # default="configs/LunarLander-v2.yaml",
-    default="PPO_logs/LunarLander-v2/continue/run_0/config.yaml",
+    default="PPO_logs/LunarLander-v2/lstm_continue/run_0/config.yaml",
     help="The config file",
 )
 parser.add_argument(
@@ -53,18 +53,18 @@ def test(args):
     state_dim = env.observation_space
     # action space dimension
     if has_continuous_action_space:
-        action_dim = env.action_space.shape[0]
+        action_space = env.action_space
     else:
-        action_dim = env.action_space.n
+        action_space = env.action_space.n
     use_lstm = config['recurrence']['use_lstm']
     exp_name = config['exp_name']
     # initialize a PPO agent
-    ppo_agent = PPO(state_dim, action_dim, config)
+    ppo_agent = PPO(state_dim, action_space, config)
 
     log_dir = f"./PPO_logs/{env_name}/{exp_name}/run_{config['run_num']}"
     latest_checkpoint = max(
         glob.glob(f'{log_dir}/checkpoints/*'), key=os.path.getctime)
-    # latest_checkpoint = f'{log_dir}/checkpoints/1864.pth'
+    latest_checkpoint = f'{log_dir}/checkpoints/240.pth'
     print(f"resume from {latest_checkpoint}")
     ppo_agent.load(latest_checkpoint)
 
@@ -73,15 +73,13 @@ def test(args):
     test_running_reward = 0
     images = []
     for ep in range(1, total_test_episodes+1):
-        ep_reward = 0
         state = env.reset()
         h_out = ppo_agent.init_recurrent_cell_states(1)
         for t in range(1, max_ep_len+1):
             h_in = h_out
-            action, _, _, _, h_out = ppo_agent.select_action(
+            action, _, _, _, _, h_out = ppo_agent.select_action(
                 np.array([state]), h_in)
-            state, reward, done, info = env.step(action[0])
-            ep_reward += reward
+            state, _, _, info = env.step(action[0])
 
             if render:
                 env.render(mode="human")
@@ -90,15 +88,11 @@ def test(args):
                     images.append(env.render(mode='rgb_array'))
                 time.sleep(frame_delay)
 
-            if done:
+            if info:
+                print(f'Episode: {ep} \t\t Reward: {info["reward"]}')
+                test_running_reward += info["reward"]
                 break
 
-        # clear buffer
-        # ppo_agent.buffer.clear()
-
-        test_running_reward += ep_reward
-        print('Episode: {} \t\t Reward: {}'.format(ep, round(ep_reward, 2)))
-        ep_reward = 0
     if args.save_gif:
         imageio.mimsave(f'{log_dir}/test.gif', images)
     env.close()

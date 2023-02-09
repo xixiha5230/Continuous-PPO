@@ -3,17 +3,19 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from algorithm.ActorCritic import ActorCritic
-
+from gym import spaces
 
 ################################## PPO Policy ##################################
+
+
 class PPO:
-    def __init__(self, obs_space, action_dim, config):
+    def __init__(self, obs_space, action_space, config):
         self.config = config
         self.conf_worker = config['worker']
         self.conf_recurrence = config['recurrence']
         self.conf_ppo = config['ppo']
         self.use_lstm = self.conf_recurrence['use_lstm']
-        self.has_continuous_action_space = config['has_continuous_action_space']
+        self.has_continuous_action = config['has_continuous_action_space']
 
         self.gamma = config['gamma']
         self.eps_clip = config['eps_clip']
@@ -24,13 +26,16 @@ class PPO:
         self.entropy_coeff = self.conf_ppo['entropy_coeff']
         self.device = config['device']
         self.policy = ActorCritic(
-            obs_space, action_dim, self.config).to(self.device)
+            obs_space, action_space, self.config).to(self.device)
         self.networks = [
-            {'params': self.policy.state.parameters(), 'lr': lr_actor},
+            {'params': self.policy.lin_hidden.parameters(), 'lr': lr_actor},
             {'params': self.policy.mu.parameters(), 'lr': lr_actor},
-            {'params': self.policy.critic.parameters(), 'lr': lr_critic}
+            {'params': self.policy.critic.parameters(), 'lr': lr_actor}
         ]
-        if self.has_continuous_action_space:
+        if isinstance(obs_space, spaces.Tuple):
+            self.networks.append(
+                {'params': self.policy.state.parameters(), 'lr': lr_actor})
+        if self.has_continuous_action:
             self.networks.append(
                 {'params': self.policy.std.parameters(), 'lr': lr_actor})
         if self.use_lstm:
@@ -38,7 +43,7 @@ class PPO:
                 {'params': self.policy.rnn.parameters(), 'lr': lr_actor})
         self.optimizer = torch.optim.Adam(self.networks)
         self.policy_old = ActorCritic(
-            obs_space, action_dim, self.config).to(self.device)
+            obs_space, action_space, self.config).to(self.device)
         self.policy_old.load_state_dict(self.policy.state_dict())
 
     def select_action(self, state, hidden_in=None):
@@ -48,11 +53,11 @@ class PPO:
                          for i in range(len(state[0]))]
             else:
                 state = torch.FloatTensor(np.array(state)).to(self.device)
-            action, action_logprob, hidden_out = self.policy_old.act(
+            action, action_logprob, value, hidden_out = self.policy_old.act(
                 state, hidden_in)
             action_s = action.detach().cpu().numpy()
-            
-        return action_s, state, action, action_logprob, hidden_out
+
+        return action_s, state, action, action_logprob, value, hidden_out
 
     def _train_mini_batch(self, samples: dict) -> list:
         """Uses one mini batch to optimize the model.
@@ -77,21 +82,32 @@ class PPO:
             samples["obs"], samples["actions"], recurrent_cell, self.conf_recurrence['sequence_length'])
         state_values = torch.squeeze(state_values)
 
-        rewards = samples["advantages"]
-        advantages = rewards - state_values.detach()
-        advantages = advantages.unsqueeze(-1)
+        advantages_unpaddedd = torch.masked_select(
+            samples["advantages"], samples["loss_mask"])
+        normalized_advantage = (
+            samples["advantages"] - advantages_unpaddedd.mean()) / (advantages_unpaddedd.std() + 1e-8)
+        if self.has_continuous_action:
+            normalized_advantage = normalized_advantage.unsqueeze(-1)
+        # rewards = samples["advantages"]
+        # advantages = rewards - state_values.detach()
+        # advantages = advantages.unsqueeze(-1)
 
         ratio = torch.exp(action_logprobs - samples["log_probs"].detach())
-        surr1 = ratio * advantages
+        surr1 = ratio * normalized_advantage
         surr2 = torch.clamp(ratio, 1.0 - self.eps_clip, 1.0 +
-                            self.eps_clip) * advantages
+                            self.eps_clip) * normalized_advantage
         policy_loss = torch.min(surr1, surr2)
-        policy_loss = self._masked_mean(
+        policy_loss = PPO._masked_mean(
             policy_loss, samples["loss_mask"])
 
         # vf_loss = (state_values - rewards) ** 2
-        vf_loss = F.smooth_l1_loss(state_values, rewards)
-        vf_loss = self._masked_mean(vf_loss, samples["loss_mask"])
+        sampled_return = samples["values"] + samples["advantages"]
+        clipped_value = samples["values"] + (state_values - samples["values"]).clamp(
+            min=-self.eps_clip, max=self.eps_clip)
+        vf_loss = torch.max((state_values-sampled_return) **
+                            2, (clipped_value-sampled_return)**2)
+        # vf_loss = F.smooth_l1_loss(state_values, rewards)
+        vf_loss = PPO._masked_mean(vf_loss, samples["loss_mask"])
 
         # Entropy Bonus
         entropy_bonus = self._masked_mean(
@@ -112,7 +128,8 @@ class PPO:
                 loss.detach().mean().item(),
                 entropy_bonus.detach().mean().item())
 
-    def _masked_mean(self, tensor: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+    @staticmethod
+    def _masked_mean(tensor: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         """
         Returns the mean of the tensor but ignores the values specified by the mask.
         This is used for masking out the padding of the loss functions.

@@ -2,12 +2,18 @@ import torch
 import torch.nn as nn
 from typing import Union, Tuple
 from gym import spaces
+import numpy as np
 
 
 def weights_init_(m):
-    if isinstance(m, nn.Linear) or isinstance(m, nn.Conv1d) or isinstance(m, nn.Conv2d):
-        torch.nn.init.xavier_uniform_(m.weight, gain=1)
-        torch.nn.init.constant_(m.bias, 0)
+    if isinstance(m, nn.Linear) or isinstance(m, nn.Conv2d) or isinstance(m, Conv1d):
+        nn.init.orthogonal_(m.weight, np.sqrt(2))
+    elif isinstance(m, nn.GRU) or isinstance(m, nn.LSTM):
+        for name, param in m.named_parameters():
+            if "bias" in name:
+                nn.init.constant_(param, 0)
+            elif "weight" in name:
+                nn.init.orthogonal_(param, np.sqrt(2))
 
 
 def conv1d_output_size(
@@ -57,7 +63,7 @@ def conv2d_output_shape(
 
 
 class Conv2d(nn.Module):
-    def __init__(self, shape, hidden_dim, out_dim):
+    def __init__(self, shape, out_dim):
         super(Conv2d, self).__init__()
         conv_1_hw = conv2d_output_shape((shape[0], shape[1]), 8, 4)
         conv_2_hw = conv2d_output_shape(conv_1_hw, 4, 2)
@@ -70,11 +76,14 @@ class Conv2d(nn.Module):
             nn.Conv2d(64, 64, [3, 3], [1, 1]),
             nn.LeakyReLU(),
         )
+        self.conv.apply(weights_init_)
+
         self.fc_w = 64 * conv_3_hw[0] * conv_3_hw[1]
         self.fc = nn.Sequential(
             nn.Linear(self.fc_w, out_dim),
             nn.ReLU(),
         )
+        self.fc.apply(weights_init_)
 
     # shape(1,84,84,4)
     def forward(self, x: torch.Tensor):
@@ -97,8 +106,11 @@ class Conv1d(nn.Module):
             nn.Conv1d(16, 32, 4, 2),
             nn.LeakyReLU(),
         )
+        self.conv.apply(weights_init_)
+
         self.fc_input = conv_2_l * 32
         self.fc = nn.Sequential(nn.Linear(self.fc_input, out_dim), nn.ReLU())
+        self.fc.apply(weights_init_)
 
     def forward(self, x: torch.Tensor):
         batch = x.shape[-2]
@@ -110,19 +122,22 @@ class Conv1d(nn.Module):
 
 
 class StateNetIR(nn.Module):
-    def __init__(self, obs_space: spaces.Tuple, out_dim: int) -> None:
+    def __init__(self, obs_space: spaces.Tuple, hidden_layer_size: int) -> None:
         assert obs_space[0].shape == (84, 84, 3)
         assert obs_space[1].shape == (400,)
         super(StateNetIR, self).__init__()
 
         self.conv1d = Conv1d(
-            obs_space[1].shape[0] // 2, 2, 16
+            obs_space[1].shape[0] // 2, 2, hidden_layer_size
         )
-        self.conv2d = Conv2d(obs_space[0].shape, hidden_dim=256, out_dim=64)
+        self.conv2d = Conv2d(obs_space[0].shape, hidden_layer_size)
+
         self.fc = nn.Sequential(
-            nn.Linear(16 + 64, out_dim), nn.ReLU()
+            nn.Linear(hidden_layer_size*2, hidden_layer_size), nn.ReLU()
         )
-        self.apply(weights_init_)
+        
+        self.out_size = hidden_layer_size
+        self.fc.apply(weights_init_)
 
     def forward(self, state):
         img_batch = state[0]

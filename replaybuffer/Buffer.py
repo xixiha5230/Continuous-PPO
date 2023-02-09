@@ -6,7 +6,7 @@ import numpy as np
 class Buffer():
     """The buffer stores and prepares the training data. It supports recurrent policies. """
 
-    def __init__(self, config: dict, observation_space: spaces.Box, action_dim) -> None:
+    def __init__(self, config: dict, observation_space: spaces.Box, action_space) -> None:
         """
         Args:
             config {dict} -- Configuration and hyperparameters of the environment, trainer and model.
@@ -27,18 +27,22 @@ class Buffer():
         self.layer_type = config["recurrence"]["layer_type"]
         self.sequence_length = config["recurrence"]["sequence_length"]
         self.true_sequence_length = 0
-        self.has_continuous_action_space = config['has_continuous_action_space']
+        self.has_continuous_action = config['has_continuous_action_space']
 
         # Initialize the buffer's data storage
         self.rewards = np.zeros(
             (self.n_workers, self.worker_steps), dtype=np.float32)
         self.dones = np.zeros(
             (self.n_workers, self.worker_steps), dtype=np.bool)
-        if self.has_continuous_action_space:
+        if self.has_continuous_action:
             self.actions = torch.zeros(
-                (self.n_workers, self.worker_steps) + (action_dim, )).to(self.device)
+                (self.n_workers, self.worker_steps) + (action_space.shape[0], )).to(self.device)
+            self.log_probs = torch.zeros(
+                (self.n_workers, self.worker_steps) + (action_space.shape[0], )).to(self.device)
         else:
             self.actions = torch.zeros(
+                (self.n_workers, self.worker_steps)).to(self.device)
+            self.log_probs = torch.zeros(
                 (self.n_workers, self.worker_steps)).to(self.device)
         if isinstance(observation_space, spaces.Tuple):
             self.obs = [[torch.zeros(
@@ -50,14 +54,8 @@ class Buffer():
             (self.n_workers, self.worker_steps, hidden_state_size)).to(self.device)
         self.cxs = torch.zeros(
             (self.n_workers, self.worker_steps, hidden_state_size)).to(self.device)
-        if self.has_continuous_action_space:
-            self.log_probs = torch.zeros(
-                (self.n_workers, self.worker_steps) + (action_dim, )).to(self.device)
-        else:
-            self.log_probs = torch.zeros(
-                (self.n_workers, self.worker_steps)).to(self.device)
-        # self.values = torch.zeros(
-        #     (self.n_workers, self.worker_steps)).to(self.device)
+        self.values = torch.zeros(
+            (self.n_workers, self.worker_steps)).to(self.device)
         self.advantages = torch.zeros(
             (self.n_workers, self.worker_steps)).to(self.device)
 
@@ -68,7 +66,7 @@ class Buffer():
         # Supply training samples
         samples = {
             "actions": self.actions,
-            # "values": self.values,
+            "values": self.values,
             "log_probs": self.log_probs,
             "advantages": self.advantages,
             "obs": self.obs,
@@ -241,22 +239,37 @@ class Buffer():
             start = end
             yield mini_batch
 
-    def calc_advantages(self, gamma: float) -> None:
+    def calc_advantages(self, last_value: torch.tensor, gamma: float, lamda: float) -> None:
         """Generalized advantage estimation (GAE)
+
         Arguments:
+            last_value {torch.tensor} -- Value of the last agent's state
             gamma {float} -- Discount factor
+            lamda {float} -- GAE regularization parameter
         """
+        # with torch.no_grad():
+        #     for w in range(self.n_workers):
+        #         rewards = []
+        #         discounted_reward = 0
+        #         for reward, is_terminal in zip(reversed(self.rewards[w, :]), reversed(self.dones[w, :])):
+        #             if is_terminal:
+        #                 discounted_reward = 0
+        #             discounted_reward = reward + \
+        #                 (gamma * discounted_reward)
+        #             rewards.insert(0, discounted_reward)
+        #         rewards = torch.tensor(
+        #             np.array(rewards), dtype=torch.float32).to(self.device)
+        #         rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-7)
+        #         self.advantages[w, :] = rewards
         with torch.no_grad():
-            for w in range(self.n_workers):
-                rewards = []
-                discounted_reward = 0
-                for reward, is_terminal in zip(reversed(self.rewards[w, :]), reversed(self.dones[w, :])):
-                    if is_terminal:
-                        discounted_reward = 0
-                    discounted_reward = reward + \
-                        (gamma * discounted_reward)
-                    rewards.insert(0, discounted_reward)
-                rewards = torch.tensor(
-                    np.array(rewards), dtype=torch.float32).to(self.device)
-                rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-7)
-                self.advantages[w, :] = rewards
+            last_advantage = 0
+            # mask values on terminal states
+            mask = torch.tensor(self.dones).logical_not().to(self.device)
+            rewards = torch.tensor(self.rewards).to(self.device)
+            for t in reversed(range(self.worker_steps)):
+                last_value = last_value * mask[:, t]
+                last_advantage = last_advantage * mask[:, t]
+                delta = rewards[:, t] + gamma * last_value - self.values[:, t]
+                last_advantage = delta + gamma * lamda * last_advantage
+                self.advantages[:, t] = last_advantage
+                last_value = self.values[:, t]
