@@ -4,7 +4,7 @@ import numpy as np
 
 from torch.distributions import MultivariateNormal
 from torch.distributions import Categorical, Normal
-from layers.StateNet import StateNetIR, weights_init_
+from layers.StateNet import StateNetIR, StateNetI, weights_init_
 from gym import spaces
 
 
@@ -22,12 +22,17 @@ class ActorCritic(nn.Module):
         if self.has_continuous_action:
             self.action_dim = action_space.shape[0]
             self.action_max = max(action_space.high)
+        else:
+            self.action_dim = action_space
         self.obs_space = obs_space
         if isinstance(obs_space, spaces.Tuple):
             self.state = StateNetIR(obs_space, 512)
             in_features_size = self.state.out_size
         elif len(obs_space.shape) == 1:
             in_features_size = obs_space.shape[0]
+        elif len(obs_space.shape) == 3:
+            self.state = StateNetI(obs_space, 512)
+            in_features_size = self.state.out_size
         else:
             raise NotImplementedError(obs_space.shape)
 
@@ -56,30 +61,25 @@ class ActorCritic(nn.Module):
 
         # actor
         if self.has_continuous_action:
-            self.mu = nn.Sequential(
-                nn.Linear(self.hidden_layer_size, self.hidden_layer_size),
-                nn.ReLU(),
-                nn.Linear(self.hidden_layer_size, self.action_dim),
-                nn.Tanh(),
-            )
-            self.mu.apply(weights_init_)
+            ac_h = nn.Linear(self.hidden_layer_size, self.hidden_layer_size)
+            nn.init.orthogonal_(ac_h.weight, np.sqrt(2))
+            ac = nn.Linear(self.hidden_layer_size, self.action_dim)
+            nn.init.orthogonal_(ac.weight, np.sqrt(0.01))
+            self.mu = nn.Sequential()
+            self.mu.append(ac_h).append(nn.ReLU())
+            self.mu.append(ac).append(nn.Tanh())
 
-            self.std = nn.Sequential(
-                nn.Linear(self.hidden_layer_size, self.hidden_layer_size),
-                nn.ReLU(),
-                nn.Linear(self.hidden_layer_size, self.action_dim),
-                nn.Softplus(),
-            )
-            self.std.apply(weights_init_)
+            self.sigma = nn.Parameter(torch.zeros(
+                1, self.action_dim).to(self.device))  # Great！We use 'nn.Parameter' to train log_std automatically
         else:
             ac_h = nn.Linear(self.hidden_layer_size, self.hidden_layer_size)
             nn.init.orthogonal_(ac_h.weight, np.sqrt(2))
-            pi = nn.Linear(self.hidden_layer_size, self.action_dim)
-            nn.init.orthogonal_(pi.weight, np.sqrt(0.01))
+            ac = nn.Linear(self.hidden_layer_size, self.action_dim)
+            nn.init.orthogonal_(ac.weight, np.sqrt(0.01))
             self.mu = nn.Sequential()
             self.mu.append(ac_h)
             self.mu.append(nn.ReLU())
-            self.mu.append(pi)
+            self.mu.append(ac)
         # critic
         self.critic = nn.Sequential(
             nn.Linear(self.hidden_layer_size, self.hidden_layer_size),
@@ -92,8 +92,8 @@ class ActorCritic(nn.Module):
         raise NotImplementedError
 
     def act(self, state, hidden_in=None, sequence_length=1):
-        # complex input
-        if isinstance(self.obs_space, spaces.Tuple):
+        # complex input or image
+        if isinstance(self.obs_space, spaces.Tuple) or len(self.obs_space.shape) == 3:
             feature = self.state(state)
         else:
             feature = state
@@ -124,7 +124,10 @@ class ActorCritic(nn.Module):
         # actor
         if self.has_continuous_action:
             action_mean = self.action_max * self.mu(feature)
-            action_std = self.std(feature)
+            # To make 'log_std' have the same dimension as 'mean'
+            log_std = self.sigma.expand_as(action_mean)
+            # The reason we train the 'log_std' is to ensure std=exp(log_std)>0
+            action_std = torch.exp(log_std)
             dist = Normal(action_mean, action_std)
         else:
             action_probs = self.mu(feature)
@@ -138,8 +141,8 @@ class ActorCritic(nn.Module):
         return action.detach(), action_logprob.detach(), value.squeeze(-1).detach(), hidden_out.detach() if hidden_out != None else None
 
     def evaluate(self, state, action, hidden_in=None, sequence_length=None):
-        # complex input
-        if isinstance(self.obs_space, spaces.Tuple):
+        # complex input or image
+        if isinstance(self.obs_space, spaces.Tuple) or len(self.obs_space.shape) == 3:
             feature = self.state(state)
         else:
             feature = state
@@ -170,7 +173,10 @@ class ActorCritic(nn.Module):
         # actor
         if self.has_continuous_action:
             action_mean = self.action_max * self.mu(feature)
-            action_std = self.std(feature)
+            # To make 'log_std' have the same dimension as 'mean'
+            log_std = self.sigma.expand_as(action_mean)
+            # The reason we train the 'log_std' is to ensure std=exp(log_std)>0
+            action_std = torch.exp(log_std)
             dist = Normal(action_mean, action_std)
         else:
             action_probs = self.mu(feature)

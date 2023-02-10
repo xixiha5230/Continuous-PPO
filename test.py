@@ -82,7 +82,7 @@ def test(args):
             state, _, _, info = env.step(action[0])
 
             if render:
-                env.render(mode="human")
+                env.render()
                 pygame.event.get()
                 if args.save_gif:
                     images.append(env.render(mode='rgb_array'))

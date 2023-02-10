@@ -135,7 +135,7 @@ class StateNetIR(nn.Module):
         self.fc = nn.Sequential(
             nn.Linear(hidden_layer_size*2, hidden_layer_size), nn.ReLU()
         )
-        
+
         self.out_size = hidden_layer_size
         self.fc.apply(weights_init_)
 
@@ -147,4 +147,18 @@ class StateNetIR(nn.Module):
         ray = self.conv1d(ray_batch)
 
         x = self.fc(torch.cat([img, ray], dim=-1))
+        return x
+
+
+class StateNetI(nn.Module):
+    def __init__(self, obs_space: spaces.Tuple, hidden_layer_size: int) -> None:
+        assert len(obs_space.shape) == 3
+        super(StateNetI, self).__init__()
+
+        self.conv2d = Conv2d(obs_space.shape, hidden_layer_size)
+        self.out_size = hidden_layer_size
+
+    def forward(self, state):
+        img_batch = state
+        x = self.conv2d(img_batch)
         return x

@@ -32,12 +32,12 @@ class PPO:
             {'params': self.policy.mu.parameters(), 'lr': lr_actor},
             {'params': self.policy.critic.parameters(), 'lr': lr_actor}
         ]
-        if isinstance(obs_space, spaces.Tuple):
+        if isinstance(obs_space, spaces.Tuple) or len(obs_space.shape) == 3:
             self.networks.append(
                 {'params': self.policy.state.parameters(), 'lr': lr_actor})
         if self.has_continuous_action:
             self.networks.append(
-                {'params': self.policy.std.parameters(), 'lr': lr_actor})
+                {'params': self.policy.sigma, 'lr': lr_actor})
         if self.use_lstm:
             self.networks.append(
                 {'params': self.policy.rnn.parameters(), 'lr': lr_actor})

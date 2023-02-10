@@ -19,9 +19,6 @@ parser.add_argument(
     help="The experiment name",
 )
 
-# TODO
-# 添加 雷达、图像支持  完成
-# 添加 任务相关知识    进行中
 if __name__ == '__main__':
     args = parser.parse_args()
     trainer = Trainer(args)

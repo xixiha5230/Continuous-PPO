@@ -3,9 +3,10 @@ import numpy as np
 import time
 
 
-class CartPole:
-    def __init__(self, name, render_mode='human'):
-        self._env = gym.make(name, render_mode='human')
+class CarRacing:
+    def __init__(self, continuous, render_mode='human'):
+        self._env = gym.make(
+            "CarRacing-v2", domain_randomize=False, continuous=continuous, render_mode='human')
 
     @property
     def observation_space(self):
@@ -18,10 +19,12 @@ class CartPole:
     def reset(self):
         self._rewards = []
         obs, _ = self._env.reset()
+        obs = obs / 255.0
         return obs
 
     def step(self, action):
         obs, reward, terminated, truncated, info = self._env.step(action)
+        obs = obs / 255.0
         self._rewards.append(reward)
         done = terminated or truncated
         if done:
@@ -31,8 +34,8 @@ class CartPole:
             info = None
         return obs, reward / 100.0, done, info
 
-    def render(self, mode='human'):
-        return self._env.render(mode=mode)
+    def render(self):
+        return self._env.render()
 
     def close(self):
         self._env.close()
