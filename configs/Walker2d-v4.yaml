@@ -4,7 +4,7 @@ ppo:
   gamma: 0.99
   lamda: 0.95
   lr: 0.0003
-  lr_std: 0.0003
+  lr_std: 0.001
   vf_loss_coeff: 0.25
 recurrence:
   hidden_state_size: 128

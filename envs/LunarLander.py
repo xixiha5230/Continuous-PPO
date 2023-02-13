@@ -1,12 +1,13 @@
 import gym
-import numpy as np
-import time
+from utils.normalization import RewardScaling
 
 
 class LunarLander:
     def __init__(self, continuous=False, render_mode=None):
         self._env = gym.make(
             "LunarLander-v2", continuous=continuous, render_mode=render_mode)
+        self.reward_scaling = RewardScaling(1, 0.99)
+        self.reward_scaling.reset()
 
     @property
     def observation_space(self):
@@ -19,6 +20,7 @@ class LunarLander:
     def reset(self):
         self._rewards = []
         obs, _ = self._env.reset()
+        self.reward_scaling.reset()
         return obs
 
     def step(self, action):
@@ -30,7 +32,7 @@ class LunarLander:
                     "length": len(self._rewards)}
         else:
             info = None
-        return obs, reward / 300.0, done, info
+        return obs, self.reward_scaling(reward), done, info
 
     def render(self):
         return self._env.render()
