@@ -12,13 +12,17 @@ class ActorCritic(nn.Module):
     def __init__(self, obs_space, action_space, config: dict):
         super(ActorCritic, self).__init__()
         self.config = config
-        self.has_continuous_action = config['has_continuous_action_space']
-        self.device = config['device']
-        self.use_lstm = config['recurrence']['use_lstm']
-        self.layer_type = config['recurrence']['layer_type']
+
+        self.conf_train = config['train']
+        self.has_continuous_action = self.conf_train['has_continuous_action_space']
+        self.device = self.conf_train['device']
+        self.hidden_layer_size = self.conf_train['hidden_layer_size']
+
+        self.conf_recurrence = config['recurrence']
+        self.use_lstm = self.conf_recurrence['use_lstm']
+        self.layer_type = self.conf_recurrence['layer_type']
         if self.use_lstm:
-            self.hidden_state_size = config['recurrence']['hidden_state_size']
-        self.hidden_layer_size = config['hidden_layer_size']
+            self.hidden_state_size = self.conf_recurrence['hidden_state_size']
         if self.has_continuous_action:
             self.action_dim = action_space.shape[0]
             self.action_max = max(action_space.high)
@@ -88,10 +92,7 @@ class ActorCritic(nn.Module):
         )
         self.critic.apply(weights_init_)
 
-    def forward(self):
-        raise NotImplementedError
-
-    def act(self, state, hidden_in=None, sequence_length=1):
+    def forward(self, state, hidden_in=None, sequence_length=1):
         # complex input or image
         if isinstance(self.obs_space, spaces.Tuple) or len(self.obs_space.shape) == 3:
             feature = self.state(state)
@@ -120,7 +121,6 @@ class ActorCritic(nn.Module):
 
         # hiddden
         feature = self.lin_hidden(feature)
-
         # actor
         if self.has_continuous_action:
             action_mean = self.action_max * self.mu(feature)
@@ -135,57 +135,4 @@ class ActorCritic(nn.Module):
 
         # critic
         value = self.critic(feature)
-
-        action = dist.sample()
-        action_logprob = dist.log_prob(action)
-        return action.detach(), action_logprob.detach(), value.squeeze(-1).detach(), hidden_out.detach() if hidden_out != None else None
-
-    def evaluate(self, state, action, hidden_in=None, sequence_length=None):
-        # complex input or image
-        if isinstance(self.obs_space, spaces.Tuple) or len(self.obs_space.shape) == 3:
-            feature = self.state(state)
-        else:
-            feature = state
-
-        # lstm
-        if self.use_lstm:
-            if sequence_length == 1:
-                # Case: sampling training data or model optimization using sequence length == 1
-                feature, hidden_out = self.rnn(
-                    feature.unsqueeze(1), hidden_in)
-                # Remove sequence length dimension
-                feature = feature.squeeze(1)
-            else:
-                feature_shape = tuple(feature.size())
-                feature = feature.reshape(
-                    (feature_shape[0] // sequence_length), sequence_length, feature_shape[1])
-                feature, hidden_out = self.rnn(
-                    feature, hidden_in)
-                out_shape = tuple(feature.size())
-                feature = feature.reshape(
-                    out_shape[0] * out_shape[1], out_shape[2])
-        else:
-            hidden_out = None
-
-        # hiddden
-        feature = self.lin_hidden(feature)
-
-        # actor
-        if self.has_continuous_action:
-            action_mean = self.action_max * self.mu(feature)
-            # To make 'log_std' have the same dimension as 'mean'
-            log_std = self.sigma.expand_as(action_mean)
-            # The reason we train the 'log_std' is to ensure std=exp(log_std)>0
-            action_std = torch.exp(log_std)
-            dist = Normal(action_mean, action_std)
-        else:
-            action_probs = self.mu(feature)
-            dist = Categorical(logits=action_probs)
-
-        # critic
-        value = self.critic(feature)
-
-        action_logprob = dist.log_prob(action)
-        dist_entropy = dist.entropy()
-
-        return action_logprob, value, dist_entropy
+        return dist, value, hidden_out if hidden_out != None else None

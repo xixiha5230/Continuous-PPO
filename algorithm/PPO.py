@@ -12,39 +12,43 @@ class PPO:
     def __init__(self, obs_space, action_space, config):
         self.config = config
         self.conf_worker = config['worker']
-        self.conf_recurrence = config['recurrence']
-        self.conf_ppo = config['ppo']
-        self.use_lstm = self.conf_recurrence['use_lstm']
-        self.has_continuous_action = config['has_continuous_action_space']
 
-        self.gamma = config['gamma']
-        self.eps_clip = config['eps_clip']
-        self.K_epochs = config['K_epochs']
-        lr_actor = config['lr_actor']
-        lr_critic = config['lr_critic']
+        self.conf_recurrence = config['recurrence']
+        self.use_lstm = self.conf_recurrence['use_lstm']
+        self.layer_type = self.conf_recurrence['layer_type']
+        self.sequence_length = self.conf_recurrence['sequence_length']
+        self.hidden_state_size = self.conf_recurrence['hidden_state_size']
+
+        self.conf_ppo = config['ppo']
+        self.gamma = self.conf_ppo['gamma']
+        self.eps_clip = self.conf_ppo['eps_clip']
+        lr = self.conf_ppo['lr']
+        lr_std = self.conf_ppo['lr_std']
         self.vf_loss_coeff = self.conf_ppo['vf_loss_coeff']
         self.entropy_coeff = self.conf_ppo['entropy_coeff']
-        self.device = config['device']
+
+        self.conf_train = config['train']
+        self.has_continuous_action = self.conf_train['has_continuous_action_space']
+        self.device = self.conf_train['device']
+        self.K_epochs = self.conf_train['K_epochs']
+
         self.policy = ActorCritic(
             obs_space, action_space, self.config).to(self.device)
         self.networks = [
-            {'params': self.policy.lin_hidden.parameters(), 'lr': lr_actor},
-            {'params': self.policy.mu.parameters(), 'lr': lr_actor},
-            {'params': self.policy.critic.parameters(), 'lr': lr_actor}
+            {'params': self.policy.lin_hidden.parameters(), 'lr': lr},
+            {'params': self.policy.mu.parameters(), 'lr': lr},
+            {'params': self.policy.critic.parameters(), 'lr': lr}
         ]
         if isinstance(obs_space, spaces.Tuple) or len(obs_space.shape) == 3:
             self.networks.append(
-                {'params': self.policy.state.parameters(), 'lr': lr_actor})
+                {'params': self.policy.state.parameters(), 'lr': lr})
         if self.has_continuous_action:
             self.networks.append(
-                {'params': self.policy.sigma, 'lr': lr_actor})
+                {'params': self.policy.sigma, 'lr': lr_std})
         if self.use_lstm:
             self.networks.append(
-                {'params': self.policy.rnn.parameters(), 'lr': lr_actor})
-        self.optimizer = torch.optim.Adam(self.networks)
-        self.policy_old = ActorCritic(
-            obs_space, action_space, self.config).to(self.device)
-        self.policy_old.load_state_dict(self.policy.state_dict())
+                {'params': self.policy.rnn.parameters(), 'lr': lr})
+        self.optimizer = torch.optim.Adam(self.networks, eps=1e-5)
 
     def select_action(self, state, hidden_in=None):
         with torch.no_grad():
@@ -53,11 +57,21 @@ class PPO:
                          for i in range(len(state[0]))]
             else:
                 state = torch.FloatTensor(np.array(state)).to(self.device)
-            action, action_logprob, value, hidden_out = self.policy_old.act(
+            dist, value, hidden_out = self.policy.forward(
                 state, hidden_in)
+            value = value.squeeze(-1)
+            action = dist.sample()
+            action_logprob = dist.log_prob(action)
             action_s = action.detach().cpu().numpy()
+            return action_s, state, action, action_logprob, value, hidden_out
 
-        return action_s, state, action, action_logprob, value, hidden_out
+    def evaluate(self, state, action, hidden_in, sequence_length):
+        dist, value, hidden_out = self.policy.forward(
+            state, hidden_in, sequence_length)
+
+        action_logprob = dist.log_prob(action)
+        dist_entropy = dist.entropy()
+        return action_logprob, value, dist_entropy
 
     def _train_mini_batch(self, samples: dict) -> list:
         """Uses one mini batch to optimize the model.
@@ -70,16 +84,16 @@ class PPO:
             {list} -- list of trainig statistics (e.g. loss)
         """
         # Retrieve sampled recurrent cell states to feed the model
-        if self.conf_recurrence['use_lstm']:
-            if self.conf_recurrence["layer_type"] == "gru":
+        if self.use_lstm:
+            if self.layer_type == "gru":
                 recurrent_cell = samples["hxs"].unsqueeze(0)
-            elif self.conf_recurrence["layer_type"] == "lstm":
+            elif self.layer_type == "lstm":
                 recurrent_cell = (samples["hxs"].unsqueeze(
                     0), samples["cxs"].unsqueeze(0))
         else:
             recurrent_cell = None
-        action_logprobs, state_values, dist_entropy = self.policy.evaluate(
-            samples["obs"], samples["actions"], recurrent_cell, self.conf_recurrence['sequence_length'])
+        action_logprobs, state_values, dist_entropy = self.evaluate(
+            samples["obs"], samples["actions"], recurrent_cell, self.sequence_length)
         state_values = torch.squeeze(state_values)
 
         advantages_unpaddedd = torch.masked_select(
@@ -142,11 +156,9 @@ class PPO:
         return (tensor.T * mask).sum() / torch.clamp((torch.ones_like(tensor.T) * mask).float().sum(), min=1.0)
 
     def save(self, checkpoint_path):
-        torch.save(self.policy_old.state_dict(), checkpoint_path)
+        torch.save(self.policy.state_dict(), checkpoint_path)
 
     def load(self, checkpoint_path):
-        self.policy_old.load_state_dict(torch.load(
-            checkpoint_path, map_location=lambda storage, loc: storage))
         self.policy.load_state_dict(torch.load(
             checkpoint_path, map_location=lambda storage, loc: storage))
 
@@ -158,8 +170,8 @@ class PPO:
             {tuple} -- Depending on the used recurrent layer type, just hidden states (gru) or both hidden states and
                      cell states are returned using initial values.
         """
-        hidden_state_size = self.conf_recurrence['hidden_state_size']
-        layer_type = self.conf_recurrence["layer_type"]
+        hidden_state_size = self.hidden_state_size
+        layer_type = self.layer_type
         hxs = torch.zeros(
             (num_sequences), hidden_state_size, dtype=torch.float32, device=self.device).unsqueeze(0)
         cxs = torch.zeros(

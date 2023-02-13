@@ -4,8 +4,8 @@ import time
 
 
 class CartPole:
-    def __init__(self, name, render_mode='human'):
-        self._env = gym.make(name, render_mode='human')
+    def __init__(self, name, render_mode=None):
+        self._env = gym.make(name, render_mode=render_mode)
 
     @property
     def observation_space(self):
@@ -31,8 +31,8 @@ class CartPole:
             info = None
         return obs, reward / 100.0, done, info
 
-    def render(self, mode='human'):
-        return self._env.render(mode=mode)
+    def render(self):
+        return self._env.render()
 
     def close(self):
         self._env.close()

@@ -13,21 +13,27 @@ class Buffer():
             observation_space {spaces.Box} -- The observation space of the agent
             device {torch.device} -- The device that will be used for training
         """
-        # Setup members
-        self.device = config['device']
+        conf_train = config['train']
+        self.device = conf_train['device']
+        self.n_mini_batches = conf_train['num_mini_batch']
+        self.has_continuous_action = conf_train['has_continuous_action_space']
 
-        worker = config["worker"]
-        self.n_workers = worker["num_workers"]
-        self.worker_steps = worker["worker_steps"]
+        conf_recurrence = config['recurrence']
+        hidden_state_size = conf_recurrence['hidden_state_size']
+        self.layer_type = conf_recurrence['layer_type']
+        self.sequence_length = conf_recurrence['sequence_length']
 
-        self.n_mini_batches = config["num_mini_batch"]
+        worker = config['worker']
+        self.n_workers = worker['num_workers']
+        self.worker_steps = worker['worker_steps']
+
+        conf_ppo = config['ppo']
+        self.gamma = conf_ppo['gamma']
+        self.lamda = conf_ppo['lamda']
+
         self.batch_size = self.n_workers * self.worker_steps
         self.mini_batch_size = self.batch_size // self.n_mini_batches
-        hidden_state_size = config["recurrence"]["hidden_state_size"]
-        self.layer_type = config["recurrence"]["layer_type"]
-        self.sequence_length = config["recurrence"]["sequence_length"]
         self.true_sequence_length = 0
-        self.has_continuous_action = config['has_continuous_action_space']
 
         # Initialize the buffer's data storage
         self.rewards = np.zeros(
@@ -239,7 +245,7 @@ class Buffer():
             start = end
             yield mini_batch
 
-    def calc_advantages(self, last_value: torch.tensor, gamma: float, lamda: float) -> None:
+    def calc_advantages(self, last_value: torch.tensor) -> None:
         """Generalized advantage estimation (GAE)
 
         Arguments:
@@ -247,20 +253,6 @@ class Buffer():
             gamma {float} -- Discount factor
             lamda {float} -- GAE regularization parameter
         """
-        # with torch.no_grad():
-        #     for w in range(self.n_workers):
-        #         rewards = []
-        #         discounted_reward = 0
-        #         for reward, is_terminal in zip(reversed(self.rewards[w, :]), reversed(self.dones[w, :])):
-        #             if is_terminal:
-        #                 discounted_reward = 0
-        #             discounted_reward = reward + \
-        #                 (gamma * discounted_reward)
-        #             rewards.insert(0, discounted_reward)
-        #         rewards = torch.tensor(
-        #             np.array(rewards), dtype=torch.float32).to(self.device)
-        #         rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-7)
-        #         self.advantages[w, :] = rewards
         with torch.no_grad():
             last_advantage = 0
             # mask values on terminal states
@@ -269,7 +261,8 @@ class Buffer():
             for t in reversed(range(self.worker_steps)):
                 last_value = last_value * mask[:, t]
                 last_advantage = last_advantage * mask[:, t]
-                delta = rewards[:, t] + gamma * last_value - self.values[:, t]
-                last_advantage = delta + gamma * lamda * last_advantage
+                delta = rewards[:, t] + self.gamma * \
+                    last_value - self.values[:, t]
+                last_advantage = delta + self.gamma * self.lamda * last_advantage
                 self.advantages[:, t] = last_advantage
                 last_value = self.values[:, t]

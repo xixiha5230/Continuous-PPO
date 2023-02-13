@@ -3,10 +3,9 @@ import numpy as np
 import time
 
 
-class CarRacing:
-    def __init__(self, continuous, render_mode=None):
-        self._env = gym.make(
-            "CarRacing-v2", domain_randomize=False, continuous=continuous, render_mode=render_mode)
+class Walker2d:
+    def __init__(self, render_mode=None):
+        self._env = gym.make('Walker2d-v4', render_mode=render_mode)
 
     @property
     def observation_space(self):
@@ -19,12 +18,10 @@ class CarRacing:
     def reset(self):
         self._rewards = []
         obs, _ = self._env.reset()
-        obs = obs / 255.0
         return obs
 
     def step(self, action):
         obs, reward, terminated, truncated, info = self._env.step(action)
-        obs = obs / 255.0
         self._rewards.append(reward)
         done = terminated or truncated
         if done:

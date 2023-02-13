@@ -4,9 +4,9 @@ import time
 
 
 class LunarLander:
-    def __init__(self, continuous=False, render_mode='human'):
+    def __init__(self, continuous=False, render_mode=None):
         self._env = gym.make(
-            "LunarLander-v2", continuous=continuous, render_mode='human')
+            "LunarLander-v2", continuous=continuous, render_mode=render_mode)
 
     @property
     def observation_space(self):
@@ -32,8 +32,8 @@ class LunarLander:
             info = None
         return obs, reward / 300.0, done, info
 
-    def render(self, mode='human'):
-        return self._env.render(mode=mode)
+    def render(self):
+        return self._env.render()
 
     def close(self):
         self._env.close()

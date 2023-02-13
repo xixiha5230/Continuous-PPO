@@ -1,9 +1,14 @@
 import argparse
 import gym
 from algorithm.Trainer import Trainer
-# ref
-# https://github.com/MarcoMeter/recurrent-ppo-truncated-bptt.git
-# https://github.com/nikhilbarhate99/PPO-PyTorch.git
+
+# *******       ref       *******
+# https://github.com/MarcoMeter/recurrent-ppo-truncated-bptt.git    lstm + multiprocessor + buffer
+# https://github.com/nikhilbarhate99/PPO-PyTorch.git                ppo
+# https://github.com/seungeunrho/minimalRL                          lstm + ppo
+# https://github.com/BlueFisher/Advanced-Soft-Actor-Critic          conv1d + conv2d
+# https://github.com/Lizhi-sjtu/DRL-code-pytorch                    optimization
+
 parser = argparse.ArgumentParser()
 parser.add_argument(
     "--config",

@@ -47,9 +47,8 @@ class Trainer:
 
         # Init workers
         print("Step 4: Init environment workers")
-        num_workers = self.conf_worker['num_workers']
         self.workers = [Worker(
-            self.env_name, self.has_continuous_action_space, w) for w in range(num_workers)]
+            self.env_name, self.has_continuous_action_space, w) for w in range(self.num_workers)]
 
         if self.random_seed != 0:
             # TODO 设置seed会导致效果不好
@@ -68,7 +67,7 @@ class Trainer:
             os.makedirs(self.log_dir)
         # get number of log files in log directory
         current_num_files = next(os.walk(self.log_dir))[1]
-        self.run_num = self.conf.setdefault(
+        self.run_num = self.conf_train.setdefault(
             'run_num', len(current_num_files))
         self.log_dir = f'{self.log_dir}/run_{self.run_num}'
         log_f_name = f"{self.log_dir}/reward.csv"
@@ -124,8 +123,6 @@ class Trainer:
                     dist_entropy_mean.append(
                         dist_entropy)
                     total_loss_mean.append(loss)
-            self.ppo_agent.policy_old.load_state_dict(
-                self.ppo_agent.policy.state_dict())
 
             self.i_episode += len(sampled_episode_info)
             episode_result = Trainer._process_episode_info(
@@ -158,13 +155,12 @@ class Trainer:
                 self._save()
 
     def _reset_env(self):
-        num_workers = self.conf_worker['num_workers']
         if isinstance(self.obs_space, spaces.Tuple):
             obs = [[np.zeros(t.shape, dtype=np.float32)
-                    for t in self.obs_space] for _ in range(num_workers)]
+                    for t in self.obs_space] for _ in range(self.num_workers)]
         else:
             obs = np.zeros(
-                (num_workers,) + self.obs_space.shape, dtype=np.float32)
+                (self.num_workers,) + self.obs_space.shape, dtype=np.float32)
         # reset env
         for worker in self.workers:
             worker.child.send(("reset", None))
@@ -172,7 +168,8 @@ class Trainer:
         for w, worker in enumerate(self.workers):
             obs[w] = worker.child.recv()
         # Setup initial recurrent cell states (LSTM: tuple(tensor, tensor) or GRU: tensor)
-        recurrent_cell = self.ppo_agent.init_recurrent_cell_states(num_workers)
+        recurrent_cell = self.ppo_agent.init_recurrent_cell_states(
+            self.num_workers)
         return obs, recurrent_cell
 
     def _sample_training_data(self) -> list:
@@ -182,14 +179,14 @@ class Trainer:
         """
         episode_infos = []
         # Sample actions from the model and collect experiences for training
-        for t in range(self.conf_worker['worker_steps']):
+        for t in range(self.worker_steps):
             # Gradients can be omitted for sampling training data
             with torch.no_grad():
 
-                if self.conf_recurrence['use_lstm']:
-                    if self.conf_recurrence["layer_type"] == "gru":
+                if self.use_lstm:
+                    if self.layer_type == "gru":
                         self.buffer.hxs[:, t] = self.recurrent_cell.squeeze(0)
-                    elif self.conf_recurrence["layer_type"] == "lstm":
+                    elif self.layer_type == "lstm":
                         self.buffer.hxs[:,
                                         t] = self.recurrent_cell[0].squeeze(0)
                         self.buffer.cxs[:,
@@ -223,7 +220,7 @@ class Trainer:
                     # Get data from reset
                     obs_w = worker.child.recv()
                     # Reset recurrent cell states
-                    if self.conf_recurrence['use_lstm'] and self.conf_recurrence["reset_hidden_state"]:
+                    if self.use_lstm and self.reset_hidden_state:
                         self.recurrent_cell[:, w] = self.ppo_agent.init_recurrent_cell_states(
                             1)
                 # Store latest observations
@@ -232,7 +229,7 @@ class Trainer:
         # Calculate advantages
         _, _, _, _, last_value_t, _ = self.ppo_agent.select_action(
             self.obs, self.recurrent_cell)
-        self.buffer.calc_advantages(last_value_t, self.gamma, 0.95)
+        self.buffer.calc_advantages(last_value_t)
         return episode_infos
 
     @staticmethod
@@ -287,56 +284,55 @@ class Trainer:
             print("Device set to : cpu")
         print("============================================================================================")
 
-        ####### initialize environment hyperparameters ######
-        self.env_name = self.conf['env_name']
-        self.exp_name = self.conf.setdefault('exp_name', self.args.exp_name)
-        # max updates times
-        self.max_updates = self.conf.setdefault('max_updates', 150)
-        self.update = self.conf.setdefault('update', 0)
-        self.i_episode = self.conf.setdefault('i_episode', 0)
-        # save model frequency (in num update)
-        self.save_model_freq = self.conf.setdefault('save_model_freq', 5)
-        self.resume = self.conf.setdefault('resume', False)
-        self.device = self.conf.setdefault('device', device)
-        self.random_seed = self.conf.setdefault('random_seed', 0)
+        ####### initialize train hyperparameters ######
+        conf_train = {}
+        self.conf_train: dict = self.conf.setdefault('train', conf_train)
+        self.exp_name = self.conf_train.setdefault(
+            'exp_name', self.args.exp_name)
+        self.env_name = self.conf_train['env_name']
+        self.K_epochs = self.conf_train.setdefault('K_epochs', 80)
+        self.device = self.conf_train.setdefault('device', device)
+        self.has_continuous_action_space = self.conf_train.setdefault(
+            'has_continuous_action_space', True)
+        self.save_model_freq = self.conf_train.setdefault('save_model_freq', 5)
+        self.random_seed = self.conf_train.setdefault('random_seed', 0)
+        self.max_updates = self.conf_train.setdefault('max_updates', 150)
+        self.num_mini_batch = self.conf_train.setdefault('num_mini_batch', 4)
+        self.hidden_layer_size = self.conf_train.setdefault(
+            'hidden_layer_size', 256
+        )
+        self.update = self.conf_train.setdefault('update', 0)
+        self.i_episode = self.conf_train.setdefault('i_episode', 0)
+        self.resume = self.conf_train.setdefault('resume', False)
 
         ################ PPO hyperparameters ################
         conf_ppo = {}
-        self.conf_ppo = self.conf.setdefault('ppo', conf_ppo)
+        self.conf_ppo: dict = self.conf.setdefault('ppo', conf_ppo)
+        self.eps_clip = self.conf_ppo.setdefault('eps_clip', 0.2)
+        self.gamma = self.conf_ppo.setdefault('gamma', 0.99)
+        self.lr = self.conf_ppo.setdefault('lr', 0.0003)
+        self.lr_std = self.conf_ppo.setdefault('lr_std', 0.001)
         self.vf_loss_coeff = self.conf_ppo.setdefault('vf_loss_coeff', 0.5)
         self.entropy_coeff = self.conf_ppo.setdefault('entropy_coeff', 0.001)
-        # update policy for K epochs in one PPO update
-        self.K_epochs = self.conf.setdefault('K_epochs', 80)
-        self.num_mini_batch = self.conf.setdefault('num_mini_batch', 4)
-        # clip parameter for PPO
-        self.eps_clip = self.conf.setdefault('eps_clip', 0.2)
-        # discount factor
-        self.gamma = self.conf.setdefault('gamma', 0.99)
-        # learning rate for actor network
-        self.lr_actor = self.conf.setdefault('lr_actor', 0.0003)
-        # learning rate for critic network
-        self.lr_critic = self.conf.setdefault('lr_critic', 0.001)
-        # continuous action space; else discrete
-        self.has_continuous_action_space = self.conf.setdefault(
-            'has_continuous_action_space', True)
-        self.hidden_layer_size = self.conf.setdefault(
-            'hidden_layer_size', 256
-        )
 
         ############## LSTM hyperparameters #################
         recurrence = {}
-        self.conf_recurrence = self.conf.setdefault('recurrence', recurrence)
-        self.conf_recurrence.setdefault('use_lstm', False)
-        self.conf_recurrence.setdefault('sequence_length', 8)
-        self.conf_recurrence.setdefault('hidden_state_size', 64)
-        self.conf_recurrence.setdefault('layer_type', 'gru')
-        self.conf_recurrence.setdefault('reset_hidden_state', True)
+        self.conf_recurrence: dict = self.conf.setdefault(
+            'recurrence', recurrence)
+        self.use_lstm = self.conf_recurrence.setdefault('use_lstm', False)
+        self.sequence_length = self.conf_recurrence.setdefault(
+            'sequence_length', -1)
+        self.hidden_state_size = self.conf_recurrence.setdefault(
+            'hidden_state_size', 64)
+        self.layer_type = self.conf_recurrence.setdefault('layer_type', 'gru')
+        self.reset_hidden_state = self.conf_recurrence.setdefault(
+            'reset_hidden_state', True)
 
         ############## Worker hyperparameters #################
         worker = {}
         self.conf_worker = self.conf.setdefault('worker', worker)
-        self.conf_worker.setdefault('num_workers', 6)
-        self.conf_worker.setdefault('worker_steps', 1000)
+        self.num_workers = self.conf_worker.setdefault('num_workers', 6)
+        self.worker_steps = self.conf_worker.setdefault('worker_steps', 1000)
 
     def _save(self):
         print(
@@ -346,9 +342,9 @@ class Trainer:
         self.ppo_agent.save(checkpoint_file)
 
         # args need uodate
-        self.conf['update'] = self.update
-        self.conf['i_episode'] = self.i_episode
-        self.conf['resume'] = True
+        self.conf_train['update'] = self.update
+        self.conf_train['i_episode'] = self.i_episode
+        self.conf_train['resume'] = True
 
         yaml_file = f'{self.log_dir}/config.yaml'
         print(f"save configures at: {yaml_file}")
