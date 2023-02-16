@@ -13,8 +13,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     "--config",
     type=str,
-    default="configs/LunarLander-v2.yaml",
-    # default="PPO_logs/LunarLander-v2/lstm/run_6/config.yaml",
+    default="configs/CarRace_NoReset.yaml",
+    # default=f"PPO_logs/Walker2d-v4/lstm_continue/run_3/config.yaml",
     help="The config file",
 )
 parser.add_argument(
@@ -23,7 +23,9 @@ parser.add_argument(
     default="test",
     help="The experiment name",
 )
-
+# TODO
+# 线性 lr，clip，entropy_coff
+# 卷积层参数 模仿 雅达利
 if __name__ == '__main__':
     args = parser.parse_args()
     trainer = Trainer(args)

@@ -34,6 +34,9 @@ class PPO:
 
         self.policy = ActorCritic(
             obs_space, action_space, self.config).to(self.device)
+        self.old_policy = ActorCritic(
+            obs_space, action_space, self.config).to(self.device)
+        self.old_policy.load_state_dict(self.policy.state_dict())
         self.networks = [
             {'params': self.policy.lin_hidden.parameters(), 'lr': lr},
             {'params': self.policy.mu.parameters(), 'lr': lr},
@@ -44,7 +47,7 @@ class PPO:
                 {'params': self.policy.state.parameters(), 'lr': lr})
         if self.has_continuous_action:
             self.networks.append(
-                {'params': self.policy.sigma, 'lr': lr_std})
+                {'params': self.policy.sigma.parameters(), 'lr': lr_std})
         if self.use_lstm:
             self.networks.append(
                 {'params': self.policy.rnn.parameters(), 'lr': lr})
@@ -57,13 +60,14 @@ class PPO:
                          for i in range(len(state[0]))]
             else:
                 state = torch.FloatTensor(np.array(state)).to(self.device)
-            dist, value, hidden_out = self.policy.forward(
+            dist, value, hidden_out = self.old_policy.forward(
                 state, hidden_in)
             value = value.squeeze(-1)
             action = dist.sample()
             action_logprob = dist.log_prob(action)
             action_s = action.detach().cpu().numpy()
-            return action_s, state, action, action_logprob, value, hidden_out
+            return action_s, state, action.detach(), action_logprob.detach(), \
+                value.detach(), hidden_out.detach() if hidden_out is not None else None
 
     def evaluate(self, state, action, hidden_in, sequence_length):
         dist, value, hidden_out = self.policy.forward(
@@ -153,7 +157,8 @@ class PPO:
         Returns:
             {Tensor} -- Returns the mean of the masked tensor.
         """
-        return (tensor.T * mask).sum() / torch.clamp((torch.ones_like(tensor.T) * mask).float().sum(), min=1.0)
+        tmp = tensor.permute(*torch.arange(tensor.ndim - 1, -1, -1))
+        return (tmp * mask).sum() / torch.clamp((torch.ones_like(tmp) * mask).float().sum(), min=1.0)
 
     def save(self, checkpoint_path):
         torch.save(self.policy.state_dict(), checkpoint_path)
@@ -161,6 +166,7 @@ class PPO:
     def load(self, checkpoint_path):
         self.policy.load_state_dict(torch.load(
             checkpoint_path, map_location=lambda storage, loc: storage))
+        self.old_policy.load_state_dict(self.policy.state_dict())
 
     def init_recurrent_cell_states(self, num_sequences) -> tuple:
         """Initializes the recurrent cell states (hxs, cxs) as zeros.

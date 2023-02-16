@@ -73,8 +73,12 @@ class ActorCritic(nn.Module):
             self.mu.append(ac_h).append(nn.ReLU())
             self.mu.append(ac).append(nn.Tanh())
 
-            self.sigma = nn.Parameter(torch.zeros(
-                1, self.action_dim).to(self.device))  # Great！We use 'nn.Parameter' to train log_std automatically
+            std = nn.Linear(self.hidden_layer_size, self.action_dim)
+            nn.init.orthogonal_(std.weight, np.sqrt(0.01))
+            self.sigma = nn.Sequential()
+            self.sigma.append(std).append(nn.Softmax(dim=-1))
+            # self.sigma = nn.Parameter(torch.zeros(
+            #     1, self.action_dim).to(self.device))  # Great！We use 'nn.Parameter' to train log_std automatically
         else:
             ac_h = nn.Linear(self.hidden_layer_size, self.hidden_layer_size)
             nn.init.orthogonal_(ac_h.weight, np.sqrt(2))
@@ -124,10 +128,9 @@ class ActorCritic(nn.Module):
         # actor
         if self.has_continuous_action:
             action_mean = self.action_max * self.mu(feature)
-            # To make 'log_std' have the same dimension as 'mean'
-            log_std = self.sigma.expand_as(action_mean)
-            # The reason we train the 'log_std' is to ensure std=exp(log_std)>0
-            action_std = torch.exp(log_std)
+            # log_std = self.sigma.expand_as(action_mean)
+            # action_std = torch.exp(log_std)
+            action_std = self.sigma(feature)
             dist = Normal(action_mean, action_std)
         else:
             action_probs = self.mu(feature)

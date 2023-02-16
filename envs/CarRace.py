@@ -3,8 +3,8 @@ from mlagents_envs.envs.unity_gym_env import UnityToGymWrapper
 from mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
 
 
-class UnityWrapper:
-    def __init__(self, file_name, worker_id):
+class CarRace:
+    def __init__(self, file_name, worker_id, time_scale):
         self.file_name = file_name
         self.worker_id = worker_id
         self.channel = EngineConfigurationChannel()
@@ -16,10 +16,10 @@ class UnityWrapper:
                                       flatten_branched=True,
                                       allow_multiple_obs=True)
         self.channel.set_configuration_parameters(
-            width=256,
-            height=256,
+            width=512,
+            height=384,
             quality_level=5,
-            time_scale=5,
+            time_scale=time_scale,
         )
 
     @property
@@ -50,3 +50,12 @@ class UnityWrapper:
 
     def close(self):
         return self._env.close()
+
+
+if __name__ == "__main__":
+    env = CarRace(file_name="UnityEnvs/CarRace", worker_id=0, time_scale=1)
+    while True:
+        done = False
+        obs = env.reset()
+        while not done:
+            obs, reward, done, info = env.step(env.action_space.sample())

@@ -1,14 +1,11 @@
 import gym
 import numpy as np
 import time
-from utils.normalization import RewardScaling
 
 
 class Walker2d:
     def __init__(self, render_mode=None):
         self._env = gym.make('Walker2d-v4', render_mode=render_mode)
-        self.reward_scaling = RewardScaling(1, 0.99)
-        self.reward_scaling.reset()
 
     @property
     def observation_space(self):
@@ -21,7 +18,6 @@ class Walker2d:
     def reset(self):
         self._rewards = []
         obs, _ = self._env.reset()
-        self.reward_scaling.reset()
         return obs
 
     def step(self, action):
@@ -33,7 +29,7 @@ class Walker2d:
                     "length": len(self._rewards)}
         else:
             info = None
-        return obs, self.reward_scaling(reward), done, info
+        return obs, reward / 10.0, done, info
 
     def render(self):
         return self._env.render()

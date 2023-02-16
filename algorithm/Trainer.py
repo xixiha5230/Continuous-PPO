@@ -123,7 +123,8 @@ class Trainer:
                     dist_entropy_mean.append(
                         dist_entropy)
                     total_loss_mean.append(loss)
-
+            self.ppo_agent.old_policy.load_state_dict(
+                self.ppo_agent.policy.state_dict())
             self.i_episode += len(sampled_episode_info)
             episode_result = Trainer._process_episode_info(
                 sampled_episode_info)

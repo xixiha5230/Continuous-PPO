@@ -4,10 +4,10 @@ ppo:
   gamma: 0.99
   lamda: 0.95
   lr: 0.0003
-  lr_std: 0.001
-  vf_loss_coeff: 0.25
+  lr_std: 0.0003
+  vf_loss_coeff: 0.5
 recurrence:
-  hidden_state_size: 128
+  hidden_state_size: 256
   layer_type: gru
   reset_hidden_state: true
   sequence_length: 8
@@ -18,7 +18,7 @@ train:
   env_name: Walker2d-v4
   exp_name: lstm_continue
   has_continuous_action_space: true
-  hidden_layer_size: 64
+  hidden_layer_size: 512
   max_updates: 500
   num_mini_batch: 16
   random_seed: 0
