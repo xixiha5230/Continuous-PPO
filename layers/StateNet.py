@@ -158,7 +158,8 @@ class StateNetI(nn.Module):
         self.conv2d = Conv2d(obs_space.shape, hidden_layer_size)
         self.out_size = hidden_layer_size
 
-    def forward(self, state):
-        img_batch = state
-        x = self.conv2d(img_batch)
+    def forward(self, state: torch.Tensor):
+        if len(state.shape) == 3:
+            state = state.unsqueeze(0)
+        x = self.conv2d(state)
         return x

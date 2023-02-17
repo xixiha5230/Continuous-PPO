@@ -14,7 +14,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     "--config",
     type=str,
-    default="PPO_logs/CarRace_NoReset/lstm_continue/run_2/config.yaml",
+    default="PPO_logs/CarRace/lstm_continue/run_0/config.yaml",
     help="The config file",
 )
 parser.add_argument(
@@ -64,7 +64,7 @@ def test(args):
     log_dir = f"./PPO_logs/{env_name}/{exp_name}/run_{run_num}"
     latest_checkpoint = max(
         glob.glob(f'{log_dir}/checkpoints/*'), key=os.path.getctime)
-    latest_checkpoint = f'{log_dir}/checkpoints/290.pth'
+    # latest_checkpoint = f'{log_dir}/checkpoints/290.pth'
     print(f"resume from {latest_checkpoint}")
     ppo_agent.load(latest_checkpoint)
     print("--------------------------------------------------------------------------------------------")
@@ -77,7 +77,7 @@ def test(args):
         for t in range(1, max_ep_len+1):
             h_in = h_out
             action, _, _, _, _, h_out = ppo_agent.select_action(
-                [state], h_in)
+                state, h_in)
             # action = ppo_agent.cal_action(np.array([state]), h_in)
             state, _, _, info = env.step(action[0])
 
