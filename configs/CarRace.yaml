@@ -24,5 +24,5 @@ train:
   random_seed: 0
   save_model_freq: 10
 worker:
-  num_workers: 6
-  worker_steps: 512
+  num_workers: 12
+  worker_steps: 256

@@ -13,6 +13,7 @@ from utils.env_helper import create_env
 from replaybuffer.Buffer import Buffer
 from worker.Worker import Worker
 from gym import spaces
+from utils.polynomial_decay import polynomial_decay
 
 
 class Trainer:
@@ -105,6 +106,13 @@ class Trainer:
             # Prepare the sampled data inside the buffer (splits data into sequences)
             self.buffer.prepare_batch_dict()
 
+            # Parameter decay
+            learning_rate = polynomial_decay(self.lr_schedule['init'], self.lr_schedule['final'],
+                                             self.lr_schedule['max_decay_steps'], self.lr_schedule['pow'], self.update)
+            clip_range = polynomial_decay(self.clip_range_schedule['init'], self.clip_range_schedule['final'],
+                                          self.clip_range_schedule['max_decay_steps'], self.clip_range_schedule['pow'], self.update)
+            entropy_coeff = polynomial_decay(self.entropy_coeff_schedule['init'], self.entropy_coeff_schedule['final'],
+                                             self.entropy_coeff_schedule['max_decay_steps'], self.entropy_coeff_schedule['pow'], self.update)
             # train K epochs
             for _ in range(self.K_epochs):
                 mini_batch_generator = self.buffer.recurrent_mini_batch_generator()
@@ -113,7 +121,8 @@ class Trainer:
                 dist_entropy_mean = []
                 total_loss_mean = []
                 for mini_batch in mini_batch_generator:
-                    actor_loss, critic_loss, loss, dist_entropy = self.ppo_agent._train_mini_batch(mini_batch)
+                    actor_loss, critic_loss, loss, dist_entropy = self.ppo_agent._train_mini_batch(
+                        learning_rate, clip_range, entropy_coeff, mini_batch)
                     actor_loss_mean.append(actor_loss)
                     critic_loss_mean.append(critic_loss)
                     dist_entropy_mean.append(dist_entropy)
@@ -138,6 +147,9 @@ class Trainer:
                 print(f'update: {self.update}\t episode: {self.i_episode}\t reward: {episode_result["reward_mean"]}')
                 self.log_f.write(f'{self.update},\t{self.i_episode},\t{episode_result["reward_mean"]}\n')
                 self.log_f.flush()
+            self.writer.add_scalar('Parameter/learning_rate', learning_rate, self.update)
+            self.writer.add_scalar('Parameter/clip_range', clip_range, self.update)
+            self.writer.add_scalar('Parameter/entropy_coeff', entropy_coeff, self.update)
             # save model weights
             if self.update != 0 and self.update % self.save_model_freq == 0:
                 self._save()
@@ -282,12 +294,27 @@ class Trainer:
         ################ PPO hyperparameters ################
         conf_ppo = {}
         self.conf_ppo: dict = self.conf.setdefault('ppo', conf_ppo)
-        self.eps_clip = self.conf_ppo.setdefault('eps_clip', 0.2)
         self.gamma = self.conf_ppo.setdefault('gamma', 0.99)
-        self.lr = self.conf_ppo.setdefault('lr', 0.0003)
-        self.lr_std = self.conf_ppo.setdefault('lr_std', 0.001)
+        self.lamda = self.conf_ppo.setdefault('lamda', 0.95)
         self.vf_loss_coeff = self.conf_ppo.setdefault('vf_loss_coeff', 0.5)
-        self.entropy_coeff = self.conf_ppo.setdefault('entropy_coeff', 0.001)
+        entropy_coeff_schedule = {}
+        self.entropy_coeff_schedule: dict = self.conf_ppo.setdefault('entropy_coeff_schedule', entropy_coeff_schedule)
+        self.entropy_coeff_schedule.setdefault('init', 0.001)
+        self.entropy_coeff_schedule.setdefault('final', 0.001)
+        self.entropy_coeff_schedule.setdefault('pow', 1.0)
+        self.entropy_coeff_schedule.setdefault('max_decay_steps', 0)
+        lr_schedule = {}
+        self.lr_schedule: dict = self.conf_ppo.setdefault('lr_schedule', lr_schedule)
+        self.lr_schedule.setdefault('init', 3.0e-4)
+        self.lr_schedule.setdefault('final', 3.0e-4)
+        self.lr_schedule.setdefault('pow', 1.0)
+        self.lr_schedule.setdefault('max_decay_steps', 0)
+        clip_range_schedule = {}
+        self.clip_range_schedule: dict = self.conf_ppo.setdefault('clip_range_schedule', clip_range_schedule)
+        self.clip_range_schedule.setdefault('init', 0.2)
+        self.clip_range_schedule.setdefault('final', 0.2)
+        self.clip_range_schedule.setdefault('pow', 1.0)
+        self.clip_range_schedule.setdefault('max_decay_steps', 0)
 
         ############## LSTM hyperparameters #################
         recurrence = {}

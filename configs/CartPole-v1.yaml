@@ -1,17 +1,28 @@
 ppo:
-  entropy_coeff: 0.01
-  eps_clip: 0.2
+  entropy_coeff_schedule:
+    init: 0.001
+    final: 0.0001
+    power: 1.0
+    max_decay_steps: 50
+  clip_range_schedule:
+    init: 0.2
+    final: 0.1
+    power: 1.0
+    max_decay_steps: 50
+  lr_schedule:
+    init: 3.0e-3
+    final: 3.0e-6
+    power: 1.0
+    max_decay_steps: 60
   gamma: 0.99
   lamda: 0.95
-  lr: 0.0003
-  lr_std: 0.0003
   vf_loss_coeff: 0.3
 recurrence:
   hidden_state_size: 64
   layer_type: gru
   reset_hidden_state: true
   sequence_length: 8
-  use_lstm: false
+  use_lstm: true
 train:
   K_epochs: 4
   device: cuda

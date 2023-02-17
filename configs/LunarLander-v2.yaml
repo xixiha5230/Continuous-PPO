@@ -1,13 +1,24 @@
 ppo:
-  entropy_coeff: 0.01
-  eps_clip: 0.2
+  entropy_coeff_schedule:
+    init: 0.01
+    final: 0.001
+    power: 1.0
+    max_decay_steps: 250
+  clip_range_schedule:
+    init: 0.3
+    final: 0.1
+    power: 1.0
+    max_decay_steps: 250
+  lr_schedule:
+    init: 3.0e-3
+    final: 3.0e-6
+    power: 1.0
+    max_decay_steps: 300
   gamma: 0.99
   lamda: 0.95
-  lr: 0.0003
-  lr_std: 0.0003
   vf_loss_coeff: 0.3
 recurrence:
-  hidden_state_size: 256
+  hidden_state_size: 64
   layer_type: gru
   reset_hidden_state: true
   sequence_length: 8
@@ -18,11 +29,11 @@ train:
   env_name: LunarLander-v2
   exp_name: continue_lstm
   has_continuous_action_space: true
-  hidden_layer_size: 512
+  hidden_layer_size: 256
   max_updates: 300
   num_mini_batch: 8
   random_seed: 0
   save_model_freq: 10
 worker:
-  num_workers: 8
-  worker_steps: 512
+  num_workers: 16
+  worker_steps: 256

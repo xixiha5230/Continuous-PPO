@@ -1,10 +1,21 @@
 ppo:
-  entropy_coeff: 0.01
-  eps_clip: 0.2
+  entropy_coeff_schedule:
+    init: 0.1
+    final: 0.001
+    power: 1.0
+    max_decay_steps: 100
+  clip_range_schedule:
+    init: 0.2
+    final: 0.2
+    power: 1.0
+    max_decay_steps: 0
+  lr_schedule:
+    init: 3.0e-3
+    final: 3.0e-6
+    power: 1.0
+    max_decay_steps: 300
   gamma: 0.99
   lamda: 0.95
-  lr: 0.0002
-  lr_std: 0.0002
   vf_loss_coeff: 0.5
 recurrence:
   hidden_state_size: 256

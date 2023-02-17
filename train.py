@@ -13,8 +13,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     '--config',
     type=str,
-    default='configs/CarRace.yaml',
-    # default=f'PPO_logs/Walker2d-v4/lstm_continue/run_3/config.yaml',
+    default='configs/CarRacing-v1.yaml',
+    # default=f'PPO_logs/CartPole-v1/discrete_lstm/run_4/config.yaml',
     help='The config file',
 )
 parser.add_argument(

@@ -63,11 +63,11 @@ class Conv2d(nn.Module):
         conv_2_hw = conv2d_output_shape(conv_1_hw, 4, 2)
         conv_3_hw = conv2d_output_shape(conv_2_hw, 3, 1)
         self.conv = nn.Sequential(
-            nn.Conv2d(shape[2], 32, [8, 8], [4, 4]),
+            nn.Conv2d(shape[2], 32, 8, 4),
             nn.LeakyReLU(),
-            nn.Conv2d(32, 64, [4, 4], [2, 2]),
+            nn.Conv2d(32, 64, 4, 2, 0),
             nn.LeakyReLU(),
-            nn.Conv2d(64, 64, [3, 3], [1, 1]),
+            nn.Conv2d(64, 64, 3, 1, 0),
             nn.LeakyReLU(),
         )
         self.conv.apply(weights_init_)
@@ -75,7 +75,7 @@ class Conv2d(nn.Module):
         self.fc_w = 64 * conv_3_hw[0] * conv_3_hw[1]
         self.fc = nn.Sequential(
             nn.Linear(self.fc_w, out_dim),
-            nn.ReLU(),
+            nn.LeakyReLU(),
         )
         self.fc.apply(weights_init_)
 
@@ -103,7 +103,10 @@ class Conv1d(nn.Module):
         self.conv.apply(weights_init_)
 
         self.fc_input = conv_2_l * 32
-        self.fc = nn.Sequential(nn.Linear(self.fc_input, out_dim), nn.ReLU())
+        self.fc = nn.Sequential(
+            nn.Linear(self.fc_input, out_dim),
+            nn.LeakyReLU()
+        )
         self.fc.apply(weights_init_)
 
     def forward(self, x: torch.Tensor):

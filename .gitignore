@@ -4,3 +4,4 @@ PPO_logs/
 PPO_figs/
 PPO_preTrained/
 .vscode/
+backups/

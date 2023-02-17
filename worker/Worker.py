@@ -31,6 +31,8 @@ def worker_process(remote: multiprocessing.connection.Connection, env_name: str,
                 break
             else:
                 raise NotImplementedError
+        except KeyboardInterrupt:
+            break
         except Exception as e:
             raise WorkerException(e)
 
