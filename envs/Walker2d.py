@@ -25,8 +25,8 @@ class Walker2d:
         self._rewards.append(reward)
         done = terminated or truncated
         if done:
-            info = {"reward": sum(self._rewards),
-                    "length": len(self._rewards)}
+            info = {'reward': sum(self._rewards),
+                    'length': len(self._rewards)}
         else:
             info = None
         return obs, reward / 10.0, done, info

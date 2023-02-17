@@ -25,8 +25,8 @@ class CartPole:
         self._rewards.append(reward)
         done = terminated or truncated
         if done:
-            info = {"reward": sum(self._rewards),
-                    "length": len(self._rewards)}
+            info = {'reward': sum(self._rewards),
+                    'length': len(self._rewards)}
         else:
             info = None
         return obs, reward / 100.0, done, info

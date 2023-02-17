@@ -39,8 +39,8 @@ class CarRace:
         obs, reward, done, info = self._env.step(action)
         self._rewards.append(reward)
         if done:
-            info = {"reward": sum(self._rewards),
-                    "length": len(self._rewards)}
+            info = {'reward': sum(self._rewards),
+                    'length': len(self._rewards)}
         else:
             info = None
         return obs, reward, done, info
@@ -52,8 +52,8 @@ class CarRace:
         return self._env.close()
 
 
-if __name__ == "__main__":
-    env = CarRace(file_name="UnityEnvs/CarRace", worker_id=0, time_scale=1)
+if __name__ == '__main__':
+    env = CarRace(file_name='UnityEnvs/CarRace', worker_id=0, time_scale=1)
     while True:
         done = False
         obs = env.reset()

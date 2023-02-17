@@ -11,17 +11,17 @@ from algorithm.Trainer import Trainer
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
-    "--config",
+    '--config',
     type=str,
-    default="configs/CarRace_NoReset.yaml",
-    # default=f"PPO_logs/Walker2d-v4/lstm_continue/run_3/config.yaml",
-    help="The config file",
+    default='configs/CarRace.yaml',
+    # default=f'PPO_logs/Walker2d-v4/lstm_continue/run_3/config.yaml',
+    help='The config file',
 )
 parser.add_argument(
-    "--exp_name",
+    '--exp_name',
     type=str,
-    default="test",
-    help="The experiment name",
+    default='test',
+    help='The experiment name',
 )
 # TODO
 # 线性 lr，clip，entropy_coff

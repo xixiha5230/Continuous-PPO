@@ -10,9 +10,9 @@ def weights_init_(m):
         nn.init.orthogonal_(m.weight, np.sqrt(2))
     elif isinstance(m, nn.GRU) or isinstance(m, nn.LSTM):
         for name, param in m.named_parameters():
-            if "bias" in name:
+            if 'bias' in name:
                 nn.init.constant_(param, 0)
-            elif "weight" in name:
+            elif 'weight' in name:
                 nn.init.orthogonal_(param, np.sqrt(2))
 
 
@@ -25,9 +25,7 @@ def conv1d_output_size(
 ):
     from math import floor
 
-    l_out = floor(
-        ((length + (2 * padding) - (dilation * (kernel_size - 1)) - 1) / stride) + 1
-    )
+    l_out = floor(((length + (2 * padding) - (dilation * (kernel_size - 1)) - 1) / stride) + 1)
     return l_out
 
 
@@ -38,7 +36,7 @@ def conv2d_output_shape(
     padding: int = 0,
     dilation: int = 1,
 ) -> Tuple[int, int]:
-    """
+    '''
     Calculates the output shape (height and width) of the output of a convolution layer.
     kernel_size, stride, padding and dilation correspond to the inputs of the
     torch.nn.Conv2d layer (https://pytorch.org/docs/stable/generated/torch.nn.Conv2d.html)
@@ -48,17 +46,13 @@ def conv2d_output_shape(
     :param stride: The stride of the convolution
     :param padding: The padding of the convolution
     :param dilation: The dilation of the convolution
-    """
+    '''
     from math import floor
 
     if not isinstance(kernel_size, tuple):
         kernel_size = (int(kernel_size), int(kernel_size))
-    h = floor(
-        ((h_w[0] + (2 * padding) - (dilation * (kernel_size[0] - 1)) - 1) / stride) + 1
-    )
-    w = floor(
-        ((h_w[1] + (2 * padding) - (dilation * (kernel_size[1] - 1)) - 1) / stride) + 1
-    )
+    h = floor(((h_w[0] + (2 * padding) - (dilation * (kernel_size[0] - 1)) - 1) / stride) + 1)
+    w = floor(((h_w[1] + (2 * padding) - (dilation * (kernel_size[1] - 1)) - 1) / stride) + 1)
     return h, w
 
 
@@ -127,13 +121,12 @@ class StateNetIR(nn.Module):
         assert obs_space[1].shape == (400,)
         super(StateNetIR, self).__init__()
 
-        self.conv1d = Conv1d(
-            obs_space[1].shape[0] // 2, 2, hidden_layer_size
-        )
+        self.conv1d = Conv1d(obs_space[1].shape[0] // 2, 2, hidden_layer_size)
         self.conv2d = Conv2d(obs_space[0].shape, hidden_layer_size)
 
         self.fc = nn.Sequential(
-            nn.Linear(hidden_layer_size*2, hidden_layer_size), nn.ReLU()
+            nn.Linear(hidden_layer_size*2, hidden_layer_size),
+            nn.ReLU()
         )
 
         self.out_size = hidden_layer_size

@@ -4,15 +4,15 @@ import numpy as np
 
 
 class Buffer():
-    """The buffer stores and prepares the training data. It supports recurrent policies. """
+    '''The buffer stores and prepares the training data. It supports recurrent policies. '''
 
     def __init__(self, config: dict, observation_space: spaces.Box, action_space) -> None:
-        """
+        '''
         Args:
             config {dict} -- Configuration and hyperparameters of the environment, trainer and model.
             observation_space {spaces.Box} -- The observation space of the agent
             device {torch.device} -- The device that will be used for training
-        """
+        '''
         conf_train = config['train']
         self.device = conf_train['device']
         self.n_mini_batches = conf_train['num_mini_batch']
@@ -63,31 +63,31 @@ class Buffer():
         self.advantages = torch.zeros((self.n_workers, self.worker_steps)).to(self.device)
 
     def prepare_batch_dict(self) -> None:
-        """Flattens the training samples and stores them inside a dictionary. Due to using a recurrent policy,
+        '''Flattens the training samples and stores them inside a dictionary. Due to using a recurrent policy,
         the data is split into episodes or sequences beforehand.
-        """
+        '''
         # Supply training samples
         samples = {
-            "actions": self.actions,
-            "obs": self.obs,
+            'actions': self.actions,
+            'obs': self.obs,
             # The loss mask is used for masking the padding while computing the loss function.
             # This is only of significance while using recurrence.
-            "loss_mask": torch.ones((self.n_workers, self.worker_steps), dtype=torch.bool).to(self.device)
+            'loss_mask': torch.ones((self.n_workers, self.worker_steps), dtype=torch.bool).to(self.device)
         }
 
         max_sequence_length = 1
 
         # Add collected recurrent cell states to the dictionary
-        samples["hxs"] = self.hxs
-        if self.layer_type == "lstm":
-            samples["cxs"] = self.cxs
+        samples['hxs'] = self.hxs
+        if self.layer_type == 'lstm':
+            samples['cxs'] = self.cxs
 
         # Split data into sequences and apply zero-padding
         # Retrieve the indices of dones as these are the last step of a whole episode
         episode_done_indices = []
         for w in range(self.n_workers):
             episode_done_indices.append(list(self.dones[w].nonzero()[0]))
-            # Append the index of the last element of a trajectory as well, as it "artifically" marks the end of an episode
+            # Append the index of the last element of a trajectory as well, as it 'artifically' marks the end of an episode
             if len(episode_done_indices[w]) == 0 or episode_done_indices[w][-1] != self.worker_steps - 1:
                 episode_done_indices[w].append(self.worker_steps - 1)
 
@@ -112,7 +112,7 @@ class Buffer():
             else:
                 samples[key] = torch.stack(sequences, axis=0)
 
-            if (key == "hxs" or key == "cxs"):
+            if (key == 'hxs' or key == 'cxs'):
                 # Select only the very first recurrent cell state of a sequence and add it to the samples.
                 samples[key] = samples[key][:, 0]
 
@@ -122,14 +122,14 @@ class Buffer():
         self.num_sequences = len(sequences[0]) if isinstance(sequences[0], list) else len(sequences)
 
         # Add remaining data samples
-        samples["values"] = self.values
-        samples["log_probs"] = self.log_probs
-        samples["advantages"] = self.advantages
+        samples['values'] = self.values
+        samples['log_probs'] = self.log_probs
+        samples['advantages'] = self.advantages
 
         # Flatten all samples and convert them to a tensor
         self.samples_flat = {}
         for key, value in samples.items():
-            if not key == "hxs" and not key == "cxs":
+            if not key == 'hxs' and not key == 'cxs':
                 if isinstance(value, list):
                     for i, v in enumerate(value):
                         value[i] = v.reshape(v.shape[0] * v.shape[1], *v.shape[2:])
@@ -138,7 +138,7 @@ class Buffer():
             self.samples_flat[key] = value
 
     def _arange_sequences(self, data, episode_done_indices):
-        """Splits the povided data into episodes and then into sequences.
+        '''Splits the povided data into episodes and then into sequences.
         The split points are indicated by the envrinoments' done signals.
 
         Arguments:
@@ -147,7 +147,7 @@ class Buffer():
 
         Returns:
             {list} -- Data arranged into sequences of variable length as list
-        """
+        '''
         sequences = []
         max_length = 1
         if isinstance(data, list):
@@ -176,7 +176,7 @@ class Buffer():
         return sequences, max_length
 
     def _pad_sequence(self, sequence: np.ndarray, target_length: int) -> np.ndarray:
-        """Pads a sequence to the target length using zeros.
+        '''Pads a sequence to the target length using zeros.
 
         Args:
             sequence {np.ndarray} -- The to be padded array (i.e. sequence)
@@ -184,7 +184,7 @@ class Buffer():
 
         Returns:
             {torch.tensor} -- Returns the padded sequence
-        """
+        '''
         # Determine the number of zeros that have to be added to the sequence
         delta_length = target_length - len(sequence[0] if isinstance(sequence, list) else sequence)
         # If the sequence is already as long as the target length, don't pad
@@ -212,12 +212,12 @@ class Buffer():
             return torch.cat((sequence, padding), axis=0)
 
     def recurrent_mini_batch_generator(self) -> dict:
-        """A recurrent generator that returns a dictionary providing training data arranged in mini batches.
+        '''A recurrent generator that returns a dictionary providing training data arranged in mini batches.
         This generator shuffles the data by sequences.
 
         Yields:
             {dict} -- Mini batch data for training
-        """
+        '''
         # Determine the number of sequences per mini batch
         num_sequences_per_batch = self.num_sequences // self.n_mini_batches
         # Arrange a list that determines the sequence count for each mini batch
@@ -227,8 +227,8 @@ class Buffer():
             # Add the remainder if the sequence count and the number of mini batches do not share a common divider
             num_sequences_per_batch[i] += 1
         # Prepare indices, but only shuffle the sequence indices and not the entire batch.
-        indices = torch.arange(0, self.num_sequences * self.actual_sequence_length
-                               ).reshape(self.num_sequences, self.actual_sequence_length)
+        indices = torch.arange(0, self.num_sequences *
+                               self.actual_sequence_length).reshape(self.num_sequences, self.actual_sequence_length)
         sequence_indices = torch.randperm(self.num_sequences)
         # !! no yet !!  At this point it is assumed that all of the available training data (values, observations, actions, ...) is padded.
 
@@ -241,10 +241,10 @@ class Buffer():
             mini_batch_unpadded_indices = [item for sublist in mini_batch_unpadded_indices for item in sublist]
             mini_batch = {}
             for key, value in self.samples_flat.items():
-                if key == "hxs" or key == "cxs":
+                if key == 'hxs' or key == 'cxs':
                     # Select recurrent cell states of sequence starts
                     mini_batch[key] = value[sequence_indices[start:end]].to(self.device)
-                elif key == "log_probs" or "advantages" in key or key == "values":
+                elif key == 'log_probs' or 'advantages' in key or key == 'values':
                     # Select unpadded data
                     mini_batch[key] = value[mini_batch_unpadded_indices].to(self.device)
                 else:
@@ -256,14 +256,20 @@ class Buffer():
             start = end
             yield mini_batch
 
+    def free_memory(self):
+        # Free memory
+        del(self.samples_flat)
+        if self.device == 'cuda':
+            torch.cuda.empty_cache()
+
     def calc_advantages(self, last_value: torch.tensor) -> None:
-        """Generalized advantage estimation (GAE)
+        '''Generalized advantage estimation (GAE)
 
         Arguments:
             last_value {torch.tensor} -- Value of the last agent's state
             gamma {float} -- Discount factor
             lamda {float} -- GAE regularization parameter
-        """
+        '''
         with torch.no_grad():
             last_advantage = 0
             # mask values on terminal states

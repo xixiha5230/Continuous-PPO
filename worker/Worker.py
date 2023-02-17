@@ -1,15 +1,16 @@
+import sys
 import multiprocessing
 import multiprocessing.connection
 from utils.env_helper import create_env
 
 
 def worker_process(remote: multiprocessing.connection.Connection, env_name: str, continuous: bool, id: int) -> None:
-    """Executes the threaded interface to the environment.
+    '''Executes the threaded interface to the environment.
 
     Args:
         remote {multiprocessing.connection.Connection} -- Parent thread
         env_name {str} -- Name of the to be instantiated environment
-    """
+    '''
     # Spawn environment
     try:
         env = create_env(env_name, continuous, id)
@@ -20,31 +21,42 @@ def worker_process(remote: multiprocessing.connection.Connection, env_name: str,
     while True:
         try:
             cmd, data = remote.recv()
-            if cmd == "step":
+            if cmd == 'step':
                 remote.send(env.step(data))
-            elif cmd == "reset":
+            elif cmd == 'reset':
                 remote.send(env.reset())
-            elif cmd == "close":
+            elif cmd == 'close':
                 remote.send(env.close())
                 remote.close()
                 break
             else:
                 raise NotImplementedError
-        except:
-            break
+        except Exception as e:
+            raise WorkerException(e)
 
 
 class Worker:
-    """A worker that runs one environment on one thread."""
+    '''A worker that runs one environment on one processer.'''
     child: multiprocessing.connection.Connection
     process: multiprocessing.Process
 
     def __init__(self, env_name: str, continuous: bool, id: int):
-        """
+        '''
         Args:
             env_name (str) -- Name of the to be instantiated environment
-        """
+        '''
         self.child, parent = multiprocessing.Pipe()
-        self.process = multiprocessing.Process(
-            target=worker_process, args=(parent, env_name, continuous, id))
+        self.process = multiprocessing.Process(target=worker_process, args=(parent, env_name, continuous, id))
         self.process.start()
+
+
+class WorkerException(Exception):
+    '''Exception that is raised in the worker process and re-raised in the main process.'''
+
+    def __init__(self, ee):
+        self.ee = ee
+        __,  __, self.tb = sys.exc_info()
+        super(WorkerException, self).__init__(str(ee))
+
+    def re_raise(self):
+        raise (self.ee, None, self.tb)

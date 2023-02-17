@@ -46,8 +46,7 @@ class ActorCritic(nn.Module):
                 self.rnn = nn.GRU(in_features_size,
                                   self.hidden_state_size, batch_first=True)
             elif self.layer_type == 'lsym':
-                self.recurrent_layer = nn.LSTM(
-                    in_features_size, self.hidden_state_size, batch_first=True)
+                self.recurrent_layer = nn.LSTM(in_features_size, self.hidden_state_size, batch_first=True)
             else:
                 raise NotImplementedError(self.layer_type)
             self.rnn.apply(weights_init_)
@@ -77,8 +76,6 @@ class ActorCritic(nn.Module):
             nn.init.orthogonal_(std.weight, np.sqrt(0.01))
             self.sigma = nn.Sequential()
             self.sigma.append(std).append(nn.Softmax(dim=-1))
-            # self.sigma = nn.Parameter(torch.zeros(
-            #     1, self.action_dim).to(self.device))  # Great！We use 'nn.Parameter' to train log_std automatically
         else:
             ac_h = nn.Linear(self.hidden_layer_size, self.hidden_layer_size)
             nn.init.orthogonal_(ac_h.weight, np.sqrt(2))
@@ -107,19 +104,15 @@ class ActorCritic(nn.Module):
         if self.use_lstm:
             if sequence_length == 1:
                 # Case: sampling training data or model optimization using sequence length == 1
-                feature, hidden_out = self.rnn(
-                    feature.unsqueeze(1), hidden_in)
+                feature, hidden_out = self.rnn(feature.unsqueeze(1), hidden_in)
                 # Remove sequence length dimension
                 feature = feature.squeeze(1)
             else:
                 feature_shape = tuple(feature.size())
-                feature = feature.reshape(
-                    (feature_shape[0] // sequence_length), sequence_length, feature_shape[1])
-                feature, hidden_out = self.rnn(
-                    feature, hidden_in)
+                feature = feature.reshape((feature_shape[0] // sequence_length), sequence_length, feature_shape[1])
+                feature, hidden_out = self.rnn(feature, hidden_in)
                 out_shape = tuple(feature.size())
-                feature = feature.reshape(
-                    out_shape[0] * out_shape[1], out_shape[2])
+                feature = feature.reshape(out_shape[0] * out_shape[1], out_shape[2])
         else:
             hidden_out = None
 

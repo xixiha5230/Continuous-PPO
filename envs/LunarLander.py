@@ -3,8 +3,7 @@ import gym
 
 class LunarLander:
     def __init__(self, continuous=False, render_mode=None):
-        self._env = gym.make(
-            "LunarLander-v2", continuous=continuous, render_mode=render_mode)
+        self._env = gym.make('LunarLander-v2', continuous=continuous, render_mode=render_mode)
 
     @property
     def observation_space(self):
@@ -25,8 +24,8 @@ class LunarLander:
         self._rewards.append(reward)
         done = terminated or truncated
         if done:
-            info = {"reward": sum(self._rewards),
-                    "length": len(self._rewards)}
+            info = {'reward': sum(self._rewards),
+                    'length': len(self._rewards)}
         else:
             info = None
         return obs, reward / 100.0, done, info

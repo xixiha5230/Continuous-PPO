@@ -103,7 +103,7 @@ class PPO:
         action_logprobs = action_logprobs[samples['loss_mask']]
         dist_entropy = dist_entropy[samples['loss_mask']]
 
-        normalized_advantage = (samples["advantages"] - samples["advantages"].mean()) / (samples["advantages"].std() + 1e-8)
+        normalized_advantage = (samples['advantages'] - samples['advantages'].mean()) / (samples['advantages'].std() + 1e-8)
         # TODO 提前挤压
         if self.has_continuous_action:
             normalized_advantage = normalized_advantage.unsqueeze(-1)
