@@ -16,9 +16,9 @@ ppo:
     max_decay_steps: 450
   gamma: 0.99
   lamda: 0.95
-  vf_loss_coeff: 0.5
+  vf_loss_coeff: 0.01
 recurrence:
-  hidden_state_size: 512
+  hidden_state_size: 256
   layer_type: gru
   reset_hidden_state: true
   sequence_length: 8
@@ -26,7 +26,7 @@ recurrence:
 train:
   K_epochs: 4
   device: cuda
-  env_name: CarRacing-v1
+  env_name: CarSearchCkpt
   exp_name: lstm_continue
   has_continuous_action_space: true
   hidden_layer_size: 512

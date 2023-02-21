@@ -14,12 +14,13 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     '--config',
     type=str,
-    default='PPO_logs/CarRacing-v1/lstm_continue/run_0/config.yaml',
+    default='PPO_logs/CarSearch_NoReset/lstm_continue/run_0/config.yaml',
     help='The config file',
 )
 parser.add_argument(
     '--save_gif',
-    action='store_true'
+    type=bool,
+    default=False
 )
 
 
@@ -45,12 +46,12 @@ def test(args):
     exp_name = conf_train['exp_name']
     run_num = conf_train['run_num']
 
-    max_ep_len = 2000           # max timesteps in one episode
-    render = True              # render environment on screen
-    frame_delay = 0.01             # if required; add delay b/w frames
-    total_test_episodes = 10    # total num of testing episodes
+    render = True               # render environment on screen
+    frame_delay = 0.01          # if required; add delay b/w frames
+    total_test_episodes = 1 if args.save_gif else 10    # total num of testing episodes
 
-    env = create_env(env_name, continuous=has_continuous_action_space, render_mode='human', id=100, time_scale=1)
+    env = create_env(env_name, continuous=has_continuous_action_space,
+                     render_mode='rgb_array' if args.save_gif else 'human', id=100, time_scale=1)
     observation_space = env.observation_space
     if has_continuous_action_space:
         action_space = env.action_space
@@ -71,7 +72,7 @@ def test(args):
     for ep in range(1, total_test_episodes+1):
         state = env.reset()
         h_out = ppo_agent.init_recurrent_cell_states(1)
-        for t in range(1, max_ep_len+1):
+        while True:
             h_in = h_out
             action, _, _, _, _, h_out = ppo_agent.select_action(state, h_in)
             # action = ppo_agent.cal_action(np.array([state]), h_in)
@@ -81,7 +82,7 @@ def test(args):
                 env.render()
                 # pygame.event.get()
                 if args.save_gif:
-                    images.append(env.render(mode='rgb_array'))
+                    images.append(env.render())
                 time.sleep(frame_delay)
 
             if info:

@@ -1,6 +1,6 @@
 import argparse
 import gym
-from algorithm.Trainer import Trainer
+from trainer.Trainer import Trainer
 
 # *******       ref       *******
 # https://github.com/MarcoMeter/recurrent-ppo-truncated-bptt.git    lstm + multiprocessor + buffer
@@ -13,8 +13,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     '--config',
     type=str,
-    default='configs/CarRacing-v1.yaml',
-    # default=f'PPO_logs/CartPole-v1/discrete_lstm/run_4/config.yaml',
+    default='configs/CarSearch.yaml',
+    # default=f'PPO_logs/CarSearch_NoReset/lstm_continue/run_0/config.yaml',
     help='The config file',
 )
 parser.add_argument(
@@ -24,8 +24,7 @@ parser.add_argument(
     help='The experiment name',
 )
 # TODO
-# 线性 lr，clip，entropy_coff
-# 卷积层参数 模仿 雅达利
+# add ICM
 if __name__ == '__main__':
     args = parser.parse_args()
     trainer = Trainer(args)

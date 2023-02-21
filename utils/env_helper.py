@@ -3,6 +3,7 @@ from envs.CarRace import CarRace
 from envs.LunarLander import LunarLander
 from envs.CartPole import CartPole
 from envs.CarRacing import CarRacing
+from envs.CarSearch import CarSearch
 from envs.Walker2d import Walker2d
 
 
@@ -27,5 +28,7 @@ def create_env(env_name: str, continuous: bool = False, id: int = 0, render_mode
         return Walker2d(render_mode=render_mode)
     elif env_name == 'CarRace' or 'CarRace_NoReset':
         return CarRace(file_name=f'./UnityEnvs/{env_name}', worker_id=id, time_scale=time_scale)
+    elif env_name == 'CarSearch' or 'CarSearch_NoReset' or 'CarSearchCkpt':
+        return CarSearch(file_name=f'./UnityEnvs/{env_name}', worker_id=id, time_scale=time_scale)
     else:
         raise f'Unknow env: {env_name}'
