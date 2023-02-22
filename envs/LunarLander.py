@@ -28,7 +28,7 @@ class LunarLander:
                     'length': len(self._rewards)}
         else:
             info = None
-        return obs, reward / 10.0, done, info
+        return obs, reward, done, info
 
     def render(self):
         return self._env.render()

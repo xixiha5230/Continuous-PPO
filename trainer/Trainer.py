@@ -2,6 +2,7 @@ import yaml
 import signal
 import os
 import glob
+import pickle
 
 import torch
 import numpy as np
@@ -14,6 +15,7 @@ from replaybuffer.Buffer import Buffer
 from worker.Worker import Worker
 from gymnasium import spaces
 from utils.polynomial_decay import polynomial_decay
+from normalization.RewardScaling import RewardScaling
 
 
 class Trainer:
@@ -36,6 +38,8 @@ class Trainer:
         else:
             self.action_space = dummy_env.action_space.n
         dummy_env.close()
+        # reward scaling for workers
+        self.reward_scaling = [RewardScaling(1, 0.99) for _ in range(self.num_workers)]
 
         # Init buffer
         print('Step 2: Init buffer')
@@ -83,6 +87,10 @@ class Trainer:
             latest_checkpoint = max(glob.glob(f'{self.log_dir}/checkpoints/*'), key=os.path.getctime)
             print(f'resume from {latest_checkpoint}')
             self.ppo_agent.load(latest_checkpoint)
+            # load reward scaling list
+            reward_scaling_file = f'{self.log_dir}/reward_scaling.pkl'
+            with open(reward_scaling_file, 'rb') as f:
+                self.reward_scaling = pickle.load(f)
 
         # tensorboard
         self.writer = tensorboardX.SummaryWriter(log_dir=self.log_dir)
@@ -167,6 +175,9 @@ class Trainer:
             obs[w] = worker.child.recv()
         # Setup initial recurrent cell states (LSTM: tuple(tensor, tensor) or GRU: tensor)
         recurrent_cell = self.ppo_agent.init_recurrent_cell_states(self.num_workers)
+        # reset reward scaling
+        for rs in self.reward_scaling:
+            rs.reset()
         return obs, recurrent_cell
 
     def _sample_training_data(self) -> list:
@@ -205,7 +216,7 @@ class Trainer:
             # Retrieve step results from the environments
             for w, worker in enumerate(self.workers):
                 obs_w, reward_w, done_w, info = worker.child.recv()
-                self.buffer.rewards[w, t] = reward_w
+                self.buffer.rewards[w, t] = self.reward_scaling[w](reward_w)
                 self.buffer.dones[w, t] = done_w
                 if info:
                     # Store the information of the completed episode (e.g. total reward, episode length)
@@ -217,6 +228,8 @@ class Trainer:
                     # Reset recurrent cell states
                     if self.use_lstm and self.reset_hidden_state:
                         self.recurrent_cell[:, w] = self.ppo_agent.init_recurrent_cell_states(1)
+                    # reset reward scaling
+                    self.reward_scaling[w].reset()
                 # Store latest observations
                 self.obs[w] = obs_w
 
@@ -336,6 +349,10 @@ class Trainer:
         checkpoint_file = f'{self.checkpoint_path}/{self.update}.pth'
         print('saving model at : ' + checkpoint_file)
         self.ppo_agent.save(checkpoint_file)
+        # reward scaling
+        reward_scaling_file = f'{self.log_dir}/reward_scaling.pkl'
+        with open(reward_scaling_file, 'wb') as f:
+            pickle.dump(self.reward_scaling, f)
 
         # args need uodate
         self.conf_train['update'] = self.update

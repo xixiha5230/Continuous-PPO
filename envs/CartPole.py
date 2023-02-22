@@ -27,7 +27,7 @@ class CartPole:
                     'length': len(self._rewards)}
         else:
             info = None
-        return obs, reward / 100.0, done, info
+        return obs, reward, done, info
 
     def render(self):
         return self._env.render()
