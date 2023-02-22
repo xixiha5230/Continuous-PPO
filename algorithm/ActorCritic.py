@@ -1,11 +1,9 @@
-import torch
 import torch.nn as nn
 import numpy as np
 
-from torch.distributions import MultivariateNormal
 from torch.distributions import Categorical, Normal
 from layers.StateNet import StateNetIR, StateNetI, weights_init_
-from gym import spaces
+from gymnasium import spaces
 
 
 class ActorCritic(nn.Module):
@@ -30,12 +28,12 @@ class ActorCritic(nn.Module):
             self.action_dim = action_space
         self.obs_space = obs_space
         if isinstance(obs_space, spaces.Tuple):
-            self.state = StateNetIR(obs_space, 512)
+            self.state = StateNetIR(obs_space, 192)
             in_features_size = self.state.out_size
         elif len(obs_space.shape) == 1:
             in_features_size = obs_space.shape[0]
         elif len(obs_space.shape) == 3:
-            self.state = StateNetI(obs_space, 512)
+            self.state = StateNetI(obs_space, 128)
             in_features_size = self.state.out_size
         else:
             raise NotImplementedError(obs_space.shape)
