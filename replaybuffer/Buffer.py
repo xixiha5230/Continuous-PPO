@@ -218,6 +218,9 @@ class Buffer():
         Yields:
             {dict} -- Mini batch data for training
         '''
+        # optimization 1: normalized advantages in batch data
+        self.samples_flat['normalized_advantages'] = (self.samples_flat['advantages'] - self.samples_flat['advantages'].mean()
+                                                      ) / (self.samples_flat['advantages'].std() + 1e-8)
         # Determine the number of sequences per mini batch
         num_sequences_per_batch = self.num_sequences // self.n_mini_batches
         # Arrange a list that determines the sequence count for each mini batch
@@ -230,8 +233,6 @@ class Buffer():
         indices = torch.arange(0, self.num_sequences *
                                self.actual_sequence_length).reshape(self.num_sequences, self.actual_sequence_length)
         sequence_indices = torch.randperm(self.num_sequences)
-        # !! no yet !!  At this point it is assumed that all of the available training data (values, observations, actions, ...) is padded.
-
         # Compose mini batches
         start = 0
         for num_sequences in num_sequences_per_batch:

@@ -43,7 +43,6 @@ class PPO:
             action = dist.sample().detach()
 
             todo_action = action.cpu().numpy()
-            value = value.squeeze(-1).detach()
             action_logprob = dist.log_prob(action).detach()
             hidden_out = hidden_out.detach() if hidden_out is not None else None
 
@@ -76,17 +75,13 @@ class PPO:
             recurrent_cell = None
         action_logprobs, state_values, dist_entropy = self.evaluate(
             mini_batch['obs'], mini_batch['actions'], recurrent_cell, self.sequence_length)
-        # TODO 提前挤压
-        state_values = torch.squeeze(state_values)
 
         # Remove paddings
         state_values = state_values[mini_batch['loss_mask']]
         action_logprobs = action_logprobs[mini_batch['loss_mask']]
         dist_entropy = dist_entropy[mini_batch['loss_mask']]
 
-        normalized_advantage = (mini_batch['advantages'] - mini_batch['advantages'].mean()
-                                ) / (mini_batch['advantages'].std() + 1e-8)
-        # TODO 提前挤压
+        normalized_advantage = mini_batch['normalized_advantages']
         if self.has_continuous_action:
             normalized_advantage = normalized_advantage.unsqueeze(-1)
 

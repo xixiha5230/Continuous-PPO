@@ -129,4 +129,5 @@ class ActorCritic(nn.Module):
 
         # critic
         value = self.critic(feature)
+        value = value.squeeze(-1)
         return dist, value, hidden_out if hidden_out != None else None

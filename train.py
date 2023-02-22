@@ -12,7 +12,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     '--config',
     type=str,
-    default='configs/Walker2d-v4.yaml',
+    default='configs/CartPole-v1.yaml',
     # default=f'PPO_logs/Walker2d-v4/lstm_continue/run_1/config.yaml',
     help='The config file',
 )
