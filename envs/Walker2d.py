@@ -27,7 +27,7 @@ class Walker2d:
                     'length': len(self._rewards)}
         else:
             info = None
-        return obs, reward / 50.0, done, info
+        return obs, reward, done, info
 
     def render(self):
         return self._env.render()

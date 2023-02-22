@@ -1,5 +1,5 @@
 import numpy as np
-from normalization.Normalization import RunningMeanStd
+from normalization.RunningMeanStd import RunningMeanStd
 
 
 class RewardScaling:
