@@ -1,7 +1,7 @@
 import gymnasium
 
 
-class Walker2d:
+class MountainCar:
     def __init__(self, env_name, render_mode=None):
         self._env = gymnasium.make(env_name, render_mode=render_mode)
 
@@ -16,6 +16,7 @@ class Walker2d:
     def reset(self):
         self._rewards = []
         obs, _ = self._env.reset()
+
         return obs
 
     def step(self, action):
@@ -27,7 +28,7 @@ class Walker2d:
                     'length': len(self._rewards)}
         else:
             info = None
-        return obs, reward / 50.0, done, info
+        return obs, reward, done, info
 
     def render(self):
         return self._env.render()

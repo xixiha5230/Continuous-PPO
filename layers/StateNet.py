@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from typing import Union, Tuple
-from gym import spaces
+from gymnasium import spaces
 import numpy as np
 
 
@@ -119,20 +119,20 @@ class Conv1d(nn.Module):
 
 
 class StateNetIR(nn.Module):
-    def __init__(self, obs_space: spaces.Tuple, hidden_layer_size: int) -> None:
+    def __init__(self, obs_space: spaces.Tuple, out_size: int) -> None:
         assert obs_space[0].shape == (84, 84, 3)
         assert obs_space[1].shape == (400,)
         super(StateNetIR, self).__init__()
 
-        self.conv1d = Conv1d(obs_space[1].shape[0] // 2, 2, hidden_layer_size)
-        self.conv2d = Conv2d(obs_space[0].shape, hidden_layer_size)
+        self.conv1d = Conv1d(obs_space[1].shape[0] // 2, 2, 64)
+        self.conv2d = Conv2d(obs_space[0].shape, 128)
 
         self.fc = nn.Sequential(
-            nn.Linear(hidden_layer_size*2, hidden_layer_size),
+            nn.Linear(64 + 128, out_size),
             nn.ReLU()
         )
 
-        self.out_size = hidden_layer_size
+        self.out_size = out_size
         self.fc.apply(weights_init_)
 
     def forward(self, state):
@@ -147,12 +147,12 @@ class StateNetIR(nn.Module):
 
 
 class StateNetI(nn.Module):
-    def __init__(self, obs_space: spaces.Tuple, hidden_layer_size: int) -> None:
+    def __init__(self, obs_space: spaces.Tuple, out_size: int) -> None:
         assert len(obs_space.shape) == 3
         super(StateNetI, self).__init__()
 
-        self.conv2d = Conv2d(obs_space.shape, hidden_layer_size)
-        self.out_size = hidden_layer_size
+        self.conv2d = Conv2d(obs_space.shape, out_size)
+        self.out_size = out_size
 
     def forward(self, state: torch.Tensor):
         if len(state.shape) == 3:

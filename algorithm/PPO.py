@@ -1,9 +1,6 @@
 import numpy as np
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 from algorithm.ActorCritic import ActorCritic
-from gym import spaces
 
 ################################## PPO Policy ##################################
 
@@ -39,6 +36,8 @@ class PPO:
                 state = [torch.FloatTensor(np.array([s[i] for s in state])).to(self.device)
                          for i in range(len(state[0]))]
             else:
+                if len(state.shape) == 1:
+                    state = [state]
                 state = torch.FloatTensor(np.array(state)).to(self.device)
             dist, value, hidden_out = self.old_policy.forward(state, hidden_in)
             action = dist.sample().detach()

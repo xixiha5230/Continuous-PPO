@@ -12,7 +12,7 @@ from algorithm.PPO import PPO
 from utils.env_helper import create_env
 from replaybuffer.Buffer import Buffer
 from worker.Worker import Worker
-from gym import spaces
+from gymnasium import spaces
 from utils.polynomial_decay import polynomial_decay
 
 

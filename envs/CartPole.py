@@ -1,11 +1,9 @@
-import gym
-import numpy as np
-import time
+import gymnasium
 
 
 class CartPole:
     def __init__(self, name, render_mode=None):
-        self._env = gym.make(name, render_mode=render_mode)
+        self._env = gymnasium.make(name, render_mode=render_mode)
 
     @property
     def observation_space(self):

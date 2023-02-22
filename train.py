@@ -1,5 +1,4 @@
 import argparse
-import gym
 from trainer.Trainer import Trainer
 
 # *******       ref       *******
@@ -13,8 +12,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     '--config',
     type=str,
-    default='configs/CarSearch.yaml',
-    # default=f'PPO_logs/CarSearch_NoReset/lstm_continue/run_0/config.yaml',
+    default='configs/Walker2d-v4.yaml',
+    # default=f'PPO_logs/Walker2d-v4/lstm_continue/run_1/config.yaml',
     help='The config file',
 )
 parser.add_argument(
