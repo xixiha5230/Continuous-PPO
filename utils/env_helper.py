@@ -5,6 +5,8 @@ from envs.CarRacing import CarRacing
 from envs.CarSearch import CarSearch
 from envs.Walker2d import Walker2d
 from envs.MountainCar import MountainCar
+from envs.Hallway import Hallway
+from envs.MinigridMemory import MinigridMemory
 
 
 def create_env(env_name: str, continuous: bool = False, id: int = 0, render_mode=None, time_scale=2):
@@ -31,5 +33,9 @@ def create_env(env_name: str, continuous: bool = False, id: int = 0, render_mode
         return CarRace(file_name=f'./UnityEnvs/{env_name}', worker_id=id, time_scale=time_scale)
     elif env_name == 'CarSearch' or env_name == 'CarSearch_NoReset' or env_name == 'CarSearchCkpt':
         return CarSearch(file_name=f'./UnityEnvs/{env_name}', worker_id=id, time_scale=time_scale)
+    elif env_name == 'Hallway':
+        return Hallway(file_name=f'./UnityEnvs/{env_name}', worker_id=id, time_scale=time_scale, render_mode=render_mode)
+    elif "MiniGrid" in env_name:
+        return MinigridMemory(env_name, render_mode)
     else:
         raise f'Unknow env: {env_name}'
