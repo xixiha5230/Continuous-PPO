@@ -131,7 +131,7 @@ class Trainer:
                 total_loss_mean = []
                 for mini_batch in mini_batch_generator:
                     actor_loss, critic_loss, loss, dist_entropy = self.ppo_agent._train_mini_batch(
-                        learning_rate, clip_range, entropy_coeff, mini_batch)
+                        learning_rate, clip_range, entropy_coeff, mini_batch, self.buffer.actual_sequence_length)
                     actor_loss_mean.append(actor_loss)
                     critic_loss_mean.append(critic_loss)
                     dist_entropy_mean.append(dist_entropy)

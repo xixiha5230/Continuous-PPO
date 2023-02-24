@@ -55,7 +55,7 @@ class PPO:
         dist_entropy = dist.entropy()
         return action_logprob, value, dist_entropy
 
-    def _train_mini_batch(self, learning_rate, clip_range, entropy_coeff, mini_batch: dict) -> list:
+    def _train_mini_batch(self, learning_rate, clip_range, entropy_coeff, mini_batch: dict, sequence_length: int) -> list:
         '''Uses one mini batch to optimize the model.
         Args:
             learning_rate {float} -- Current learning rate
@@ -74,7 +74,7 @@ class PPO:
         else:
             recurrent_cell = None
         action_logprobs, state_values, dist_entropy = self.evaluate(
-            mini_batch['obs'], mini_batch['actions'], recurrent_cell, self.sequence_length)
+            mini_batch['obs'], mini_batch['actions'], recurrent_cell, sequence_length)
 
         # Remove paddings
         state_values = state_values[mini_batch['loss_mask']]
