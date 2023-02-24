@@ -56,9 +56,9 @@ def conv2d_output_shape(
     return h, w
 
 
-class Conv2d(nn.Module):
+class AtariImage(nn.Module):
     def __init__(self, shape, out_dim):
-        super(Conv2d, self).__init__()
+        super(AtariImage, self).__init__()
         conv_1_hw = conv2d_output_shape((shape[0], shape[1]), 8, 4)
         conv_2_hw = conv2d_output_shape(conv_1_hw, 4, 2)
         conv_3_hw = conv2d_output_shape(conv_2_hw, 3, 1)
@@ -118,14 +118,15 @@ class Conv1d(nn.Module):
         return x
 
 
-class StateNetIR(nn.Module):
+class StateNetUGV(nn.Module):
+    # UGV
     def __init__(self, obs_space: spaces.Tuple, out_size: int) -> None:
         assert obs_space[0].shape == (84, 84, 3)
         assert obs_space[1].shape == (400,)
-        super(StateNetIR, self).__init__()
+        super(StateNetUGV, self).__init__()
 
         self.conv1d = Conv1d(obs_space[1].shape[0] // 2, 2, 64)
-        self.conv2d = Conv2d(obs_space[0].shape, 128)
+        self.conv2d = AtariImage(obs_space[0].shape, 128)
 
         self.fc = nn.Sequential(
             nn.Linear(64 + 128, out_size),
@@ -146,12 +147,12 @@ class StateNetIR(nn.Module):
         return x
 
 
-class StateNetI(nn.Module):
+class StateNetImage(nn.Module):
+    # single image
     def __init__(self, obs_space: spaces.Tuple, out_size: int) -> None:
-        assert len(obs_space.shape) == 3
-        super(StateNetI, self).__init__()
-
-        self.conv2d = Conv2d(obs_space.shape, out_size)
+        assert obs_space.shape == (84, 84, 3)
+        super(StateNetImage, self).__init__()
+        self.conv2d = AtariImage(obs_space.shape, out_size)
         self.out_size = out_size
 
     def forward(self, state: torch.Tensor):

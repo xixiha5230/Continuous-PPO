@@ -4,9 +4,7 @@ import time
 import argparse
 import yaml
 import imageio
-import pygame
 import torch
-import numpy as np
 from algorithm.PPO import PPO
 from utils.env_helper import create_env
 

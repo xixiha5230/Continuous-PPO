@@ -1,4 +1,5 @@
-from gym import spaces
+from gym import spaces as gym_spaces
+from gymnasium import spaces as gymnasium_spaces
 import torch
 import numpy as np
 
@@ -6,7 +7,7 @@ import numpy as np
 class Buffer():
     '''The buffer stores and prepares the training data. It supports recurrent policies. '''
 
-    def __init__(self, config: dict, observation_space: spaces.Box, action_space) -> None:
+    def __init__(self, config: dict, observation_space: gym_spaces, action_space) -> None:
         '''
         Args:
             config {dict} -- Configuration and hyperparameters of the environment, trainer and model.
@@ -48,7 +49,7 @@ class Buffer():
             self.actions = torch.zeros((self.n_workers, self.worker_steps)).to(self.device)
             self.log_probs = torch.zeros((self.n_workers, self.worker_steps)).to(self.device)
         # Observation
-        if isinstance(observation_space, spaces.Tuple):
+        if isinstance(observation_space,  gym_spaces.Tuple) or isinstance(observation_space, gymnasium_spaces.Tuple):
             self.obs = [[torch.zeros((self.n_workers,) + t.shape).to(self.device)
                          for t in observation_space] for _ in range(self.worker_steps)]
         else:
