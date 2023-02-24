@@ -27,8 +27,8 @@ train:
   K_epochs: 4
   device: cuda
   env_name: CarRacing-v1
-  exp_name: lstm_continue
-  has_continuous_action_space: true
+  exp_name: lstm_continuous
+  action_type: continuous
   hidden_layer_size: 512
   max_updates: 500
   num_mini_batch: 8

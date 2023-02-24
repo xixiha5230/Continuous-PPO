@@ -2,8 +2,10 @@ import gymnasium
 
 
 class CarRacing:
-    def __init__(self, continuous, render_mode=None):
-        self._env = gymnasium.make('CarRacing-v2', domain_randomize=False, continuous=continuous, render_mode=render_mode)
+    def __init__(self, action_type, render_mode=None):
+        self._env = gymnasium.make('CarRacing-v2', domain_randomize=False,
+                                   continuous=True if action_type == 'continuous' else False,
+                                   render_mode=render_mode)
 
     @property
     def observation_space(self):

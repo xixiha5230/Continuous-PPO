@@ -31,12 +31,14 @@ class Trainer:
 
         # Init dummy environment and retrieve action and observation spaces
         print('Step 1: Init dummy environment')
-        dummy_env = create_env(self.env_name, self.has_continuous_action_space)
+        dummy_env = create_env(self.env_name, self.action_type)
         self.obs_space = dummy_env.observation_space
-        if self.has_continuous_action_space:
+        if self.action_type == 'continuous':
             self.action_space = dummy_env.action_space
-        else:
+        elif self.action_type == 'discrete':
             self.action_space = dummy_env.action_space.n
+        else:
+            raise NotImplementedError(self.action_type)
         dummy_env.close()
         # reward scaling for workers
         self.reward_scaling = [RewardScaling(1, 0.99) for _ in range(self.num_workers)]
@@ -51,8 +53,7 @@ class Trainer:
 
         # Init workers
         print('Step 4: Init environment workers')
-        self.workers = [Worker(
-            self.env_name, self.has_continuous_action_space, w) for w in range(self.num_workers)]
+        self.workers = [Worker(self.env_name, self.action_type, w) for w in range(self.num_workers)]
 
         if self.random_seed != 0:
             # TODO 设置seed会导致效果不好
@@ -147,6 +148,9 @@ class Trainer:
             self.writer.add_scalar('Loss/critic', np.mean(critic_loss_mean), self.update)
             self.writer.add_scalar('Loss/total', np.mean(total_loss_mean), self.update)
             self.writer.add_scalar('Loss/entropy', np.mean(dist_entropy_mean), self.update)
+            self.writer.add_scalar('Parameter/learning_rate', learning_rate, self.update)
+            self.writer.add_scalar('Parameter/clip_range', clip_range, self.update)
+            self.writer.add_scalar('Parameter/entropy_coeff', entropy_coeff, self.update)
             if(len(episode_result) > 0):
                 self.writer.add_scalar('Train/reward_mean', episode_result['reward_mean'], self.update)
                 self.writer.add_scalar('Train/reward_std', episode_result['reward_std'], self.update)
@@ -155,9 +159,6 @@ class Trainer:
                 print(f'update: {self.update}\t episode: {self.i_episode}\t reward: {episode_result["reward_mean"]}')
                 self.log_f.write(f'{self.update},\t{self.i_episode},\t{episode_result["reward_mean"]}\n')
                 self.log_f.flush()
-            self.writer.add_scalar('Parameter/learning_rate', learning_rate, self.update)
-            self.writer.add_scalar('Parameter/clip_range', clip_range, self.update)
-            self.writer.add_scalar('Parameter/entropy_coeff', entropy_coeff, self.update)
             # save model weights
             if self.update != 0 and self.update % self.save_model_freq == 0:
                 self._save()
@@ -294,7 +295,7 @@ class Trainer:
         self.env_name = self.conf_train['env_name']
         self.K_epochs = self.conf_train.setdefault('K_epochs', 80)
         self.device = self.conf_train.setdefault('device', device)
-        self.has_continuous_action_space = self.conf_train.setdefault('has_continuous_action_space', True)
+        self.action_type = self.conf_train.setdefault('action_type', 'continuous')
         self.save_model_freq = self.conf_train.setdefault('save_model_freq', 5)
         self.random_seed = self.conf_train.setdefault('random_seed', 0)
         self.max_updates = self.conf_train.setdefault('max_updates', 150)

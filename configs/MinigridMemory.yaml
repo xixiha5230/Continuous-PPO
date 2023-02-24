@@ -28,7 +28,7 @@ train:
   device: cuda
   env_name: MiniGrid-MemoryS9-v0
   exp_name: MinigridMemory
-  has_continuous_action_space: false
+  action_type: discrete
   hidden_layer_size: 512
   max_updates: 500
   num_mini_batch: 8

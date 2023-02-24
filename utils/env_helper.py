@@ -9,7 +9,7 @@ from envs.Hallway import Hallway
 from envs.MinigridMemory import MinigridMemory
 
 
-def create_env(env_name: str, continuous: bool = False, id: int = 0, render_mode=None, time_scale=2):
+def create_env(env_name: str, action_type: bool = False, id: int = 0, render_mode=None, time_scale=2):
     '''Initializes an environment based on the provided environment name.
 
     Args:
@@ -18,7 +18,7 @@ def create_env(env_name: str, continuous: bool = False, id: int = 0, render_mode
         {env}: Returns the selected environment instance.
     '''
     if env_name == 'LunarLander-v2':
-        return LunarLander(continuous=continuous, render_mode=render_mode)
+        return LunarLander(action_type=action_type, render_mode=render_mode)
     elif env_name == 'BipedalWalker-v3':
         raise NotImplementedError()
     elif env_name == 'MountainCar-v0' or env_name == 'MountainCarContinuous-v0':
@@ -26,7 +26,7 @@ def create_env(env_name: str, continuous: bool = False, id: int = 0, render_mode
     elif env_name == 'CartPole-v1' or env_name == 'CartPole-v0':
         return CartPole(env_name, render_mode=render_mode)
     elif env_name == 'CarRacing-v1':
-        return CarRacing(continuous=continuous, render_mode=render_mode)
+        return CarRacing(action_type=action_type, render_mode=render_mode)
     elif env_name == 'Walker2d-v4' or env_name == 'Walker2d-v2':
         return Walker2d(env_name, render_mode=render_mode)
     elif env_name == 'CarRace' or env_name == 'CarRace_NoReset':

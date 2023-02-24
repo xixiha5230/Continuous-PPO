@@ -12,7 +12,7 @@ class ActorCritic(nn.Module):
         self.config = config
 
         self.conf_train = config['train']
-        self.has_continuous_action = self.conf_train['has_continuous_action_space']
+        self.action_type = self.conf_train['action_type']
         self.device = self.conf_train['device']
         self.hidden_layer_size = self.conf_train['hidden_layer_size']
 
@@ -21,11 +21,13 @@ class ActorCritic(nn.Module):
         self.layer_type = self.conf_recurrence['layer_type']
         if self.use_lstm:
             self.hidden_state_size = self.conf_recurrence['hidden_state_size']
-        if self.has_continuous_action:
+        if self.action_type == 'continuous':
             self.action_dim = action_space.shape[0]
             self.action_max = max(action_space.high)
-        else:
+        elif self.action_type == 'discrete':
             self.action_dim = action_space
+        else:
+            raise NotImplementedError(self.action_type)
         self.obs_space = obs_space
         # complex input
         if isinstance(obs_space, spaces.Tuple):
@@ -66,7 +68,7 @@ class ActorCritic(nn.Module):
         self.lin_hidden.apply(weights_init_)
 
         # actor
-        if self.has_continuous_action:
+        if self.action_type == 'continuous':
             ac_h = nn.Linear(self.hidden_layer_size, self.hidden_layer_size)
             nn.init.orthogonal_(ac_h.weight, np.sqrt(2))
             ac = nn.Linear(self.hidden_layer_size, self.action_dim)
@@ -74,12 +76,11 @@ class ActorCritic(nn.Module):
             self.mu = nn.Sequential()
             self.mu.append(ac_h).append(nn.ReLU())
             self.mu.append(ac).append(nn.Tanh())
-
             std = nn.Linear(self.hidden_layer_size, self.action_dim)
             nn.init.orthogonal_(std.weight, np.sqrt(0.01))
             self.sigma = nn.Sequential()
             self.sigma.append(std).append(nn.Softmax(dim=-1))
-        else:
+        elif self.action_type == 'discrete':
             ac_h = nn.Linear(self.hidden_layer_size, self.hidden_layer_size)
             nn.init.orthogonal_(ac_h.weight, np.sqrt(2))
             ac = nn.Linear(self.hidden_layer_size, self.action_dim)
@@ -88,6 +89,9 @@ class ActorCritic(nn.Module):
             self.mu.append(ac_h)
             self.mu.append(nn.ReLU())
             self.mu.append(ac)
+        else:
+            raise NotImplementedError(self.action_type)
+
         # critic
         self.critic = nn.Sequential(
             nn.Linear(self.hidden_layer_size, self.hidden_layer_size),
@@ -121,16 +125,17 @@ class ActorCritic(nn.Module):
 
         # hiddden
         feature = self.lin_hidden(feature)
+
         # actor
-        if self.has_continuous_action:
+        if self.action_type == 'continuous':
             action_mean = self.action_max * self.mu(feature)
-            # log_std = self.sigma.expand_as(action_mean)
-            # action_std = torch.exp(log_std)
             action_std = self.sigma(feature)
             dist = Normal(action_mean, action_std)
-        else:
+        elif self.action_type == 'discrete':
             action_probs = self.mu(feature)
             dist = Categorical(logits=action_probs)
+        else:
+            raise NotImplementedError(self.action_type)
 
         # critic
         value = self.critic(feature)

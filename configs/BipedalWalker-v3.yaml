@@ -8,7 +8,7 @@ env_name: BipedalWalker-v3
 eps_clip: 0.2
 exp_name: lstm
 gamma: 0.99
-has_continuous_action_space: true
+action_type: continuous
 lr_actor: 0.0003
 lr_critic: 0.0003
 max_updates: 110

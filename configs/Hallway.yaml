@@ -28,7 +28,7 @@ train:
   device: cuda
   env_name: Hallway
   exp_name: lstm_seq16
-  has_continuous_action_space: false
+  action_type: discrete
   hidden_layer_size: 256
   max_updates: 300
   num_mini_batch: 8

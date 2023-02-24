@@ -2,8 +2,10 @@ import gymnasium
 
 
 class LunarLander:
-    def __init__(self, continuous=False, render_mode=None):
-        self._env = gymnasium.make('LunarLander-v2', continuous=continuous, render_mode=render_mode)
+    def __init__(self, action_type='discrete', render_mode=None):
+        self._env = gymnasium.make('LunarLander-v2',
+                                   continuous=True if action_type == 'continuous' else False,
+                                   render_mode=render_mode)
 
     @property
     def observation_space(self):

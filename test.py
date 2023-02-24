@@ -12,7 +12,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     '--config',
     type=str,
-    default='PPO_logs/CarSearch_NoReset/lstm_continue/run_0/config.yaml',
+    default='PPO_logs/CarSearch_NoReset/lstm_continuous/run_0/config.yaml',
     help='The config file',
 )
 parser.add_argument(
@@ -23,24 +23,20 @@ parser.add_argument(
 
 
 def test(args):
-    ################################## set device ##################################
-    print('============================================================================================')
-    # set device to cpu or cuda
-    device = 'cpu'
     if(torch.cuda.is_available()):
         device = 'cuda'
         torch.cuda.empty_cache()
         print('Device set to : ' + str(torch.cuda.get_device_name(device)))
     else:
+        device = 'cpu'
         print('Device set to : cpu')
-    print('============================================================================================')
 
-    with open(args.config, 'r') as infile:
-        config = yaml.safe_load(infile)
+    with open(args.config, 'r') as f:
+        config = yaml.safe_load(f)
 
     conf_train = config['train']
     env_name = conf_train['env_name']
-    has_continuous_action_space = conf_train['has_continuous_action_space']
+    action_type = conf_train['action_type']
     exp_name = conf_train['exp_name']
     run_num = conf_train['run_num']
 
@@ -48,13 +44,15 @@ def test(args):
     frame_delay = 0.01          # if required; add delay b/w frames
     total_test_episodes = 1 if args.save_gif else 10    # total num of testing episodes
 
-    env = create_env(env_name, continuous=has_continuous_action_space,
+    env = create_env(env_name, action_type=action_type,
                      render_mode='rgb_array' if args.save_gif else 'human', id=100, time_scale=1)
     observation_space = env.observation_space
-    if has_continuous_action_space:
+    if action_type == 'continuous':
         action_space = env.action_space
-    else:
+    elif action_type == 'discrete':
         action_space = env.action_space.n
+    else:
+        raise NotImplementedError(action_type)
     # initialize a PPO agent
     ppo_agent = PPO(observation_space, action_space, config)
 

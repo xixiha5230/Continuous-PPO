@@ -19,7 +19,7 @@ class PPO:
         self.conf_ppo = config['ppo']
         self.vf_loss_coeff = self.conf_ppo['vf_loss_coeff']
         self.conf_train = config['train']
-        self.has_continuous_action = self.conf_train['has_continuous_action_space']
+        self.action_type = self.conf_train['action_type']
         self.device = self.conf_train['device']
 
         self.policy = ActorCritic(obs_space, action_space, self.config).to(self.device)
@@ -82,7 +82,8 @@ class PPO:
         dist_entropy = dist_entropy[mini_batch['loss_mask']]
 
         normalized_advantage = mini_batch['normalized_advantages']
-        if self.has_continuous_action:
+        # TODO why
+        if self.action_type == 'continuous':
             normalized_advantage = normalized_advantage.unsqueeze(-1)
 
         # policy_loss

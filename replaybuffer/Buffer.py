@@ -17,7 +17,7 @@ class Buffer():
         conf_train = config['train']
         self.device = conf_train['device']
         self.n_mini_batches = conf_train['num_mini_batch']
-        self.has_continuous_action = conf_train['has_continuous_action_space']
+        self.action_type = conf_train['action_type']
 
         conf_recurrence = config['recurrence']
         hidden_state_size = conf_recurrence['hidden_state_size']
@@ -42,12 +42,14 @@ class Buffer():
         self.dones = np.zeros(
             (self.n_workers, self.worker_steps), dtype=np.bool)
         # Action & Log_probs
-        if self.has_continuous_action:
+        if self.action_type == 'continuous':
             self.actions = torch.zeros((self.n_workers, self.worker_steps) + (action_space.shape[0], )).to(self.device)
             self.log_probs = torch.zeros((self.n_workers, self.worker_steps) + (action_space.shape[0], )).to(self.device)
-        else:
+        elif self.action_type == 'discrete':
             self.actions = torch.zeros((self.n_workers, self.worker_steps)).to(self.device)
             self.log_probs = torch.zeros((self.n_workers, self.worker_steps)).to(self.device)
+        else:
+            raise NotImplementedError(self.action_type)
         # Observation
         if isinstance(observation_space,  gym_spaces.Tuple) or isinstance(observation_space, gymnasium_spaces.Tuple):
             self.obs = [[torch.zeros((self.n_workers,) + t.shape).to(self.device)

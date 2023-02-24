@@ -28,7 +28,7 @@ train:
   device: cuda
   env_name: MountainCar-v0
   exp_name: discrete_lstm
-  has_continuous_action_space: false
+  action_type: discrete
   hidden_layer_size: 256
   max_updates: 300
   num_mini_batch: 8
