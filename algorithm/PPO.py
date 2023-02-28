@@ -2,11 +2,17 @@ import numpy as np
 import torch
 from algorithm.ActorCritic import ActorCritic
 
-################################## PPO Policy ##################################
-
 
 class PPO:
-    def __init__(self, obs_space, action_space, config):
+    '''PPO algorithm'''
+
+    def __init__(self, obs_space: tuple, action_space: tuple, config: dict):
+        '''
+        Args:
+            obs_space {tuple} -- observation space
+            action_space {tuple} -- action space
+            config {dict} -- config dictionary
+        '''
         self.config = config
         self.conf_worker = config['worker']
 
@@ -27,7 +33,20 @@ class PPO:
         self.old_policy.load_state_dict(self.policy.state_dict())
         self.optimizer = torch.optim.AdamW(self.policy.parameters(), lr=self.conf_ppo['lr_schedule']['init'], eps=1e-5)
 
-    def select_action(self, state, hidden_in=None):
+    def select_action(self, state, hidden_in: torch.Tensor = None):
+        ''' Select action based on state and hidden_in
+
+        Args:
+            state {array} -- observations
+            hidden_in {torch.Tensor} -- RNN hidden in feature
+        Returns:
+            {todo_action}: action to be performed
+            {state}: state tensor
+            {action}: action tensor 
+            {action_logprob}: action logprob tensor
+            {value}: value of current state tensor
+            {hidden_out}: RNN hidden out feature tensor
+        '''
         with torch.no_grad():
             if isinstance(state, list):
                 # single state
@@ -39,7 +58,7 @@ class PPO:
                 if len(state.shape) == 1:
                     state = [state]
                 state = torch.FloatTensor(np.array(state)).to(self.device)
-            dist, value, hidden_out = self.old_policy.forward(state, hidden_in)
+            dist, value, hidden_out = self.old_policy.forward(state, hidden_in, sequence_length=1)
             action = dist.sample().detach()
 
             todo_action = action.cpu().numpy()
@@ -48,20 +67,33 @@ class PPO:
 
             return todo_action, state, action, action_logprob, value, hidden_out
 
-    def evaluate(self, state, action, hidden_in, sequence_length):
+    def evaluate(self, state, action: torch.Tensor, hidden_in: torch.Tensor, sequence_length: int):
+        ''' evaluate current batch base on state and action
+
+        Args:
+            state {torch.Tensor, list} -- observations
+            action {torch.Tensor} -- old action
+            hidden_in {torch.Tensor} -- RNN hidden in feature
+            sequence_length {int} -- RNN sequence length
+        Returns:
+            {action_logprob}: action logprob tensor
+            {value}: value base on state and new action  and old action
+            {dist_entropy}: action entropy 
+        '''
         dist, value, hidden_out = self.policy.forward(state, hidden_in, sequence_length)
 
         action_logprob = dist.log_prob(action)
         dist_entropy = dist.entropy()
         return action_logprob, value, dist_entropy
 
-    def _train_mini_batch(self, learning_rate, clip_range, entropy_coeff, mini_batch: dict, sequence_length: int) -> list:
+    def _train_mini_batch(self, learning_rate: float, clip_range: float, entropy_coeff: float, mini_batch: dict, sequence_length: int) -> list:
         '''Uses one mini batch to optimize the model.
         Args:
             learning_rate {float} -- Current learning rate
             clip_range {float} -- Current clip range
             entropy_coeff {float} -- Current entropy bonus coefficient
             mini_batch {dict} -- The to be used mini batch data to optimize the model
+            sequence_length {int} -- RNN sequence length
         Returns:
             {list} -- list of trainig statistics (e.g. loss)
         '''
@@ -119,10 +151,18 @@ class PPO:
                 loss.detach().mean().item(),
                 entropy_bonus.detach().mean().item())
 
-    def save(self, checkpoint_path):
-        torch.save(self.policy.state_dict(), checkpoint_path)
+    def save(self, checkpoint_path: str):
+        ''' save old policy state dict
+        Args:
+            checkpoint_path {str} -- checkpoint path
+        '''
+        torch.save(self.old_policy.state_dict(), checkpoint_path)
 
     def load(self, checkpoint_path):
+        ''' load policy state dict
+        Args:
+            checkpoint_path {str} -- checkpoint path
+        '''
         self.policy.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
         self.old_policy.load_state_dict(self.policy.state_dict())
 

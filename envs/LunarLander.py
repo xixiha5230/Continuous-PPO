@@ -2,7 +2,14 @@ import gymnasium
 
 
 class LunarLander:
-    def __init__(self, action_type='discrete', render_mode=None):
+    ''' Gym LunarLander environment '''
+
+    def __init__(self, action_type: str, render_mode=None):
+        '''
+        Args:
+            action_type {str} -- action type: continuous or discrete
+            render_mode {str} -- render mode: humnan or rgb_array
+        '''
         self._env = gymnasium.make('LunarLander-v2',
                                    continuous=True if action_type == 'continuous' else False,
                                    render_mode=render_mode)

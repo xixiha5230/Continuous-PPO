@@ -4,7 +4,16 @@ from mlagents_envs.side_channel.engine_configuration_channel import EngineConfig
 
 
 class Hallway:
+    ''' Unity Hallway environment '''
+
     def __init__(self, file_name, worker_id, time_scale, render_mode=None):
+        '''
+        Args:
+            file_name {str} -- unity environment path
+            worker_id {int} -- unity work id
+            time_scale {int} -- unnity time scale
+            render_mode {str} -- render mode: only set humnan to render
+        '''
         self.file_name = file_name
         self.worker_id = worker_id
         self.channel = EngineConfigurationChannel()

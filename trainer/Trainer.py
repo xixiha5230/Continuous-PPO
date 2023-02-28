@@ -19,18 +19,38 @@ from normalization.RewardScaling import RewardScaling
 
 
 class Trainer:
-    def __init__(self, args) -> None:
-        # load config
-        self.args = args
+    ''' 
+    1. Read the config file and checking
+    2. Listen for keyboard interrupts to save the model
+    3. Obtain the action space and observation space
+    4. Init reward scaling
+    5. Init buffer
+    6. Init model and optimizer
+    7. Init environment workers
+    8. Random seed
+    9. Reset workers
+    10. Set log files
+    11. Check resume
+    12. Starting training
+    '''
+
+    def __init__(self, config_file: str, exp_name: str) -> None:
+        '''
+        Args:
+            config_file {str} -- path of yaml file that save the parameters
+            exp_name {str} -- name of current experiment
+        '''
+        print('Step 1: Read the config file and checking')
+        self.exp_name = exp_name
         self.conf = {}
-        with open(args.config, 'r') as infile:
+        with open(config_file, 'r') as infile:
             self.conf = yaml.safe_load(infile)
         self._config_check()
-        # handle signal
+
+        print('Step 2: Listen for keyboard interrupts to save the model')
         signal.signal(signal.SIGINT, self._signal_handler)
 
-        # Init dummy environment and retrieve action and observation spaces
-        print('Step 1: Init dummy environment')
+        print('Step 3: Obtain the action space and observation space')
         dummy_env = create_env(self.env_name, self.action_type)
         self.obs_space = dummy_env.observation_space
         if self.action_type == 'continuous':
@@ -40,42 +60,39 @@ class Trainer:
         else:
             raise NotImplementedError(self.action_type)
         dummy_env.close()
-        # reward scaling for workers
+
+        print('Step 4: Init reward scaling')
         self.reward_scaling = [RewardScaling(1, 0.99) for _ in range(self.num_workers)]
 
-        # Init buffer
-        print('Step 2: Init buffer')
+        print('Step 5: Init buffer')
         self.buffer = Buffer(self.conf, self.obs_space, self.action_space)
 
-        # Init a PPO agent
-        print('Step 3: Init model and optimizer')
+        print('Step 6: Init model and optimizer')
         self.ppo_agent = PPO(self.obs_space, self.action_space, self.conf)
 
-        # Init workers
-        print('Step 4: Init environment workers')
+        print('Step 7: Init environment workers')
         self.workers = [Worker(self.env_name, self.action_type, w) for w in range(self.num_workers)]
 
+        print('Step 8: Random seed')
         if self.random_seed != 0:
             # TODO 设置seed会导致效果不好
             torch.manual_seed(self.random_seed)
             # self.env.seed(self.random_seed)
             np.random.seed(self.random_seed)
 
-        # Reset workers (i.e. environments)
-        print('Step 5: Reset workers')
+        print('Step 9: Reset workers')
         self.obs, self.recurrent_cell = self._reset_env()
 
-        # log files for multiple runs are NOT overwritten
-        print('Step 6: Set logs')
+        print('Step 10: Set log files')
         self.log_dir = f'PPO_logs/{self.env_name}/{self.exp_name}'
         if not os.path.exists(self.log_dir):
             os.makedirs(self.log_dir)
-        # get number of log files in log directory
-        current_num_files = next(os.walk(self.log_dir))[1]
-        self.run_num = self.conf_train.setdefault('run_num', len(current_num_files))
+        num_files = next(os.walk(self.log_dir))[1]
+        self.run_num = self.conf_train.setdefault('run_num', len(num_files))
         self.log_dir = f'{self.log_dir}/run_{self.run_num}'
         log_f_name = f'{self.log_dir}/reward.csv'
-        print('logging at : ' + log_f_name)
+
+        print('Step 11: Check resume')
         if not self.resume:
             if not os.path.exists(self.log_dir):
                 os.makedirs(self.log_dir)
@@ -88,22 +105,20 @@ class Trainer:
             latest_checkpoint = max(glob.glob(f'{self.log_dir}/checkpoints/*'), key=os.path.getctime)
             print(f'resume from {latest_checkpoint}')
             self.ppo_agent.load(latest_checkpoint)
-            # load reward scaling list
             reward_scaling_file = f'{self.log_dir}/reward_scaling.pkl'
             with open(reward_scaling_file, 'rb') as f:
                 self.reward_scaling = pickle.load(f)
-
-        # tensorboard
         self.writer = tensorboardX.SummaryWriter(log_dir=self.log_dir)
-        # change this to prevent overwriting weights in same env_name folder
         self.checkpoint_path = f'{self.log_dir}/checkpoints'
         if not os.path.exists(self.checkpoint_path):
             os.makedirs(self.checkpoint_path)
         print('save checkpoint path : ' + self.checkpoint_path)
 
     def run(self):
-        # training loop
-        print('Step 7: Starting training')
+        '''
+        sample data --> prepare batch data --> gengerate mini batch data --> update PPO
+        '''
+        print('Step 12: Starting training')
         self.start_time = datetime.now().replace(microsecond=0)
         print('Started training at (GMT) : ', self.start_time)
 
@@ -139,8 +154,10 @@ class Trainer:
 
             # update old policy
             self.ppo_agent.old_policy.load_state_dict(self.ppo_agent.policy.state_dict())
+
             # free memory
             self.buffer.free_memory()
+
             # write logs
             self.i_episode += len(sampled_episode_info)
             episode_result = Trainer._process_episode_info(sampled_episode_info)
@@ -159,11 +176,13 @@ class Trainer:
                 print(f'update: {self.update}\t episode: {self.i_episode}\t reward: {episode_result["reward_mean"]}')
                 self.log_f.write(f'{self.update},\t{self.i_episode},\t{episode_result["reward_mean"]}\n')
                 self.log_f.flush()
+
             # save model weights
             if self.update != 0 and self.update % self.save_model_freq == 0:
                 self._save()
 
     def _reset_env(self):
+        ''' reset all environment in workers '''
         if isinstance(self.obs_space, spaces.Tuple):
             obs = [[np.zeros(t.shape, dtype=np.float32) for t in self.obs_space] for _ in range(self.num_workers)]
         else:
@@ -242,7 +261,6 @@ class Trainer:
     @staticmethod
     def _process_episode_info(episode_info: list) -> dict:
         '''Extracts the mean and std of completed episode statistics like length and total reward.
-
         Args:
             episode_info {list} -- list of dictionaries containing results of completed episodes during the sampling phase
 
@@ -260,13 +278,16 @@ class Trainer:
                 result[key + '_std'] = np.std([info[key] for info in episode_info])
         return result
 
-    def close(self, done=True):
+    def close(self, done: bool = True):
+        '''close traning.
+        Args:
+            done {bool} -- Whether the maximum number of training steps has been reached
+        '''
         if not done:
             self._save()
         self.writer.close()
         for worker in self.workers:
             worker.child.send(('close', None))
-        # print total training time
         print('============================================================================================')
         end_time = datetime.now().replace(microsecond=0)
         print('Started training at (GMT) : ', self.start_time)
@@ -276,22 +297,22 @@ class Trainer:
         exit(0)
 
     def _config_check(self):
-        ################################## set device ##################################
+        '''check configuration file'''
+        # check device
         print('============================================================================================')
-        # set device to cpu or cuda
-        device = 'cpu'
         if(torch.cuda.is_available()):
             device = 'cuda'
             torch.cuda.empty_cache()
             print('Device set to : ' + str(torch.cuda.get_device_name(device)))
         else:
+            device = 'cpu'
             print('Device set to : cpu')
         print('============================================================================================')
 
-        ####### initialize train hyperparameters ######
+        # initialize train hyperparameters
         conf_train = {}
         self.conf_train: dict = self.conf.setdefault('train', conf_train)
-        self.exp_name = self.conf_train.setdefault('exp_name', self.args.exp_name)
+        self.exp_name = self.conf_train.setdefault('exp_name', self.exp_name)
         self.env_name = self.conf_train['env_name']
         self.K_epochs = self.conf_train.setdefault('K_epochs', 80)
         self.device = self.conf_train.setdefault('device', device)
@@ -305,7 +326,7 @@ class Trainer:
         self.i_episode = self.conf_train.setdefault('i_episode', 0)
         self.resume = self.conf_train.setdefault('resume', False)
 
-        ################ PPO hyperparameters ################
+        # PPO hyperparameters
         conf_ppo = {}
         self.conf_ppo: dict = self.conf.setdefault('ppo', conf_ppo)
         self.gamma = self.conf_ppo.setdefault('gamma', 0.99)
@@ -330,7 +351,7 @@ class Trainer:
         self.clip_range_schedule.setdefault('pow', 1.0)
         self.clip_range_schedule.setdefault('max_decay_steps', 0)
 
-        ############## LSTM hyperparameters #################
+        # LSTM hyperparameters
         recurrence = {}
         self.conf_recurrence: dict = self.conf.setdefault('recurrence', recurrence)
         self.use_lstm = self.conf_recurrence.setdefault('use_lstm', False)
@@ -339,33 +360,36 @@ class Trainer:
         self.layer_type = self.conf_recurrence.setdefault('layer_type', 'gru')
         self.reset_hidden_state = self.conf_recurrence.setdefault('reset_hidden_state', True)
 
-        ############## Worker hyperparameters #################
+        # Worker hyperparameters
         worker = {}
         self.conf_worker = self.conf.setdefault('worker', worker)
         self.num_workers = self.conf_worker.setdefault('num_workers', 6)
         self.worker_steps = self.conf_worker.setdefault('worker_steps', 1000)
 
     def _save(self):
+        '''save model & reward scaling & yaml file'''
+
+        # save model
         print('--------------------------------------------------------------------------------------------')
         checkpoint_file = f'{self.checkpoint_path}/{self.update}.pth'
         print('saving model at : ' + checkpoint_file)
         self.ppo_agent.save(checkpoint_file)
-        # reward scaling
+
+        # save reward scaling
         reward_scaling_file = f'{self.log_dir}/reward_scaling.pkl'
         with open(reward_scaling_file, 'wb') as f:
             pickle.dump(self.reward_scaling, f)
 
-        # args need uodate
+        # save yaml file
         self.conf_train['update'] = self.update
         self.conf_train['i_episode'] = self.i_episode
         self.conf_train['resume'] = True
-
         yaml_file = f'{self.log_dir}/config.yaml'
         print(f'save configures at: {yaml_file}')
         with open(yaml_file, 'w') as fp:
             yaml.dump(self.conf, fp)
-        print(
-            '--------------------------------------------------------------------------------------------')
+        print('--------------------------------------------------------------------------------------------')
 
     def _signal_handler(self, sig, frame):
+        '''save when keyboard interrupt'''
         self.close(done=False)

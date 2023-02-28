@@ -1,13 +1,23 @@
+import torch
 import torch.nn as nn
-import numpy as np
-
 from torch.distributions import Categorical, Normal
-from layers.StateNet import StateNetUGV, StateNetImage, weights_init_
+
+import numpy as np
+# TODO Use tuple?
 from gymnasium import spaces
+from layers.StateNet import StateNetUGV, StateNetImage, weights_init_
 
 
 class ActorCritic(nn.Module):
+    ''' Actor Critic Module '''
+
     def __init__(self, obs_space, action_space, config: dict):
+        '''
+        Args:
+            obs_space {tuple} -- observation space
+            action_space {tuple} -- action space
+            config {dict} -- config dictionary
+        '''
         super(ActorCritic, self).__init__()
         self.config = config
 
@@ -100,7 +110,17 @@ class ActorCritic(nn.Module):
         )
         self.critic.apply(weights_init_)
 
-    def forward(self, state, hidden_in=None, sequence_length=1):
+    def forward(self, state, hidden_in: torch.Tensor = None, sequence_length: int = 1):
+        '''
+        Args:
+            state {tensor, list} -- observation tensor
+            hidden_in {torch.Tensor} -- RNN hidden in feature
+            sequence_length {int} -- RNN sequence length
+        Returns:
+            {dist}: action dist
+            {value}: value base on current state
+            {hidden_out}: RNN hidden out feature  
+        '''
         # complex input or image
         if isinstance(self.obs_space, spaces.Tuple) or len(self.obs_space.shape) == 3:
             feature = self.state(state)

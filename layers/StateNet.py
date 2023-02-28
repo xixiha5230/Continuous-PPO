@@ -3,9 +3,16 @@ import torch.nn as nn
 from typing import Union, Tuple
 from gymnasium import spaces
 import numpy as np
+from math import floor
 
 
-def weights_init_(m):
+def weights_init_(m: nn.Module):
+    ''' orthogonal_ init the Linear and GRU module weight with sqrt(2)
+        orthogonal_ init the GRU module bias with 0
+
+    Args:
+        shape {nn.Module} -- module
+    '''
     if isinstance(m, nn.Linear) or isinstance(m, nn.Conv2d) or isinstance(m, Conv1d):
         nn.init.orthogonal_(m.weight, np.sqrt(2))
     elif isinstance(m, nn.GRU) or isinstance(m, nn.LSTM):
@@ -16,15 +23,17 @@ def weights_init_(m):
                 nn.init.orthogonal_(param, np.sqrt(2))
 
 
-def conv1d_output_size(
-    length: int,
-    kernel_size: int = 1,
-    stride: int = 1,
-    padding: int = 0,
-    dilation: int = 1,
-):
-    from math import floor
+def conv1d_output_size(length: int, kernel_size: int = 1, stride: int = 1, padding: int = 0, dilation: int = 1):
+    ''' calculate conv1d output size
+        comv1d input shape is like (chanel, length)
 
+    Args:
+        length {int} -- length of feature
+        kernel_size {int} -- conv1d kernel size
+        stride {int} -- conv1d stride length
+        padding {int} -- conv1d padding size
+        dilation {int} -- conv1d dilation size
+    '''
     l_out = floor(((length + (2 * padding) - (dilation * (kernel_size - 1)) - 1) / stride) + 1)
     return l_out
 
@@ -36,19 +45,17 @@ def conv2d_output_shape(
     padding: int = 0,
     dilation: int = 1,
 ) -> Tuple[int, int]:
-    '''
-    Calculates the output shape (height and width) of the output of a convolution layer.
-    kernel_size, stride, padding and dilation correspond to the inputs of the
-    torch.nn.Conv2d layer (https://pytorch.org/docs/stable/generated/torch.nn.Conv2d.html)
-    :param h_w: The height and width of the input.
-    :param kernel_size: The size of the kernel of the convolution (can be an int or a
-    tuple [width, height])
-    :param stride: The stride of the convolution
-    :param padding: The padding of the convolution
-    :param dilation: The dilation of the convolution
-    '''
-    from math import floor
+    '''Calculates the output shape (height and width) of the output of a convolution layer.
+        kernel_size, stride, padding and dilation correspond to the inputs of the 
+        torch.nn.Conv2d layer (https://pytorch.org/docs/stable/generated/torch.nn.Conv2d.html)
 
+    Args:
+        h_w {Tuple[int, int]} -- The height and width of the input
+        kernel_size {Union[int, Tuple[int, int]]} -- The size of the kernel of the convolution
+        stride {int} -- The stride of the convolution
+        padding {int} -- The padding of the convolution
+        dilation {int} -- The dilation of the convolution
+    '''
     if not isinstance(kernel_size, tuple):
         kernel_size = (int(kernel_size), int(kernel_size))
     h = floor(((h_w[0] + (2 * padding) - (dilation * (kernel_size[0] - 1)) - 1) / stride) + 1)
@@ -57,7 +64,14 @@ def conv2d_output_shape(
 
 
 class AtariImage(nn.Module):
+    ''' image convolution module like Open AI Atari '''
+
     def __init__(self, shape, out_dim):
+        '''
+        Args:
+            shape {tuple} -- The shape of image like (84, 84, 3)
+            out_dim {int} -- The output dimension
+        '''
         super(AtariImage, self).__init__()
         conv_1_hw = conv2d_output_shape((shape[0], shape[1]), 8, 4)
         conv_2_hw = conv2d_output_shape(conv_1_hw, 4, 2)
@@ -79,8 +93,12 @@ class AtariImage(nn.Module):
         )
         self.fc.apply(weights_init_)
 
-    # shape(1,84,84,4)
     def forward(self, x: torch.Tensor):
+        '''
+        Args:
+            x {torch.Tensor} -- image tensor shape like (84, 84, 3)
+        '''
+        # TODO 环境采样时使用（3，84，84）
         x = x.permute(0, 3, 1, 2)
         x = self.conv(x)
         x = x.reshape(x.shape[0], self.fc_w)
@@ -89,7 +107,15 @@ class AtariImage(nn.Module):
 
 
 class Conv1d(nn.Module):
-    def __init__(self, length, channel, out_dim):
+    ''' dense sensor data convolution module '''
+
+    def __init__(self, length: int, channel: int, out_dim: int):
+        '''
+        Args:
+            length {int} -- data length
+            channel {int} -- data chanel
+            out_dim {int} -- output dimension
+        '''
         super(Conv1d, self).__init__()
 
         conv_1_l = conv1d_output_size(length, 8, 4)
@@ -110,6 +136,10 @@ class Conv1d(nn.Module):
         self.fc.apply(weights_init_)
 
     def forward(self, x: torch.Tensor):
+        '''
+        Args:
+            x {torch.Tensor} -- tensor of sensor data shape like (batch, 400)
+        '''
         batch = x.shape[-2]
         x = x.reshape(x.shape[-2], 2, x.shape[-1] // 2)
         hidden = self.conv(x)
@@ -119,8 +149,14 @@ class Conv1d(nn.Module):
 
 
 class StateNetUGV(nn.Module):
-    # UGV
+    ''' UGV environment data process module '''
+
     def __init__(self, obs_space: spaces.Tuple, out_size: int) -> None:
+        '''
+        Args:
+            obs_space {spaces.Tuple} -- shape is ((84, 84, 3), (400, ))
+            out_size {int} -- output dimension
+        '''
         assert obs_space[0].shape == (84, 84, 3)
         assert obs_space[1].shape == (400,)
         super(StateNetUGV, self).__init__()
@@ -136,7 +172,11 @@ class StateNetUGV(nn.Module):
         self.out_size = out_size
         self.fc.apply(weights_init_)
 
-    def forward(self, state):
+    def forward(self, state: list):
+        '''
+        Args:
+            state {list} -- state is list of [image tensor, sensor tensor]
+        '''
         img_batch = state[0]
         ray_batch = state[1]
 
@@ -148,14 +188,24 @@ class StateNetUGV(nn.Module):
 
 
 class StateNetImage(nn.Module):
-    # single image
+    ''' single image process module '''
+
     def __init__(self, obs_space: spaces.Tuple, out_size: int) -> None:
+        '''
+        Args:
+            obs_space {spaces.Tuple} -- shape is (84, 84, 3)
+            out_size {int} -- output dimension
+        '''
         assert obs_space.shape == (84, 84, 3)
         super(StateNetImage, self).__init__()
         self.conv2d = AtariImage(obs_space.shape, out_size)
         self.out_size = out_size
 
     def forward(self, state: torch.Tensor):
+        '''
+        Args:
+            state {torch.Tensor} -- tensor of image 
+        '''
         if len(state.shape) == 3:
             state = state.unsqueeze(0)
         x = self.conv2d(state)

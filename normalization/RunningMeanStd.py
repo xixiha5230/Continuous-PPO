@@ -2,9 +2,13 @@ import numpy as np
 
 
 class RunningMeanStd:
-    # Dynamically calculate mean and std
-    # shape:the dimension of input data
+    ''' Dynamically calculate mean and std '''
+
     def __init__(self, shape):
+        '''
+        Args:
+            shape {tuple} -- the dimension of input data
+        '''
         self.n = 0
         self.mean = np.zeros(shape)
         self.S = np.zeros(shape)

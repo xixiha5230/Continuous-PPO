@@ -3,9 +3,9 @@ from trainer.Trainer import Trainer
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
-    '--config',
+    '--config_file',
     type=str,
-    default='configs/CartPole-v1.yaml',
+    default='configs/Hallway.yaml',
     help='The config file',
 )
 parser.add_argument(
@@ -19,6 +19,6 @@ parser.add_argument(
 # add ICM
 if __name__ == '__main__':
     args = parser.parse_args()
-    trainer = Trainer(args)
+    trainer = Trainer(args.config_file, args.exp_name)
     trainer.run()
     trainer.close()

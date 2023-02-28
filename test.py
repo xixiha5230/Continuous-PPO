@@ -12,7 +12,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     '--config',
     type=str,
-    default='PPO_logs/CarSearch_NoReset/lstm_continuous/run_0/config.yaml',
+    default='PPO_logs/Hallway/No_LSTM_seq32_256/run_0/config.yaml',
     help='The config file',
 )
 parser.add_argument(
@@ -40,9 +40,9 @@ def test(args):
     exp_name = conf_train['exp_name']
     run_num = conf_train['run_num']
 
-    render = True               # render environment on screen
-    frame_delay = 0.01          # if required; add delay b/w frames
-    total_test_episodes = 1 if args.save_gif else 10    # total num of testing episodes
+    render = True
+    frame_delay = 0.01
+    total_test_episodes = 1 if args.save_gif else 10
 
     env = create_env(env_name, action_type=action_type,
                      render_mode='rgb_array' if args.save_gif else 'human', id=100, time_scale=1)
@@ -53,16 +53,18 @@ def test(args):
         action_space = env.action_space.n
     else:
         raise NotImplementedError(action_type)
+
     # initialize a PPO agent
     ppo_agent = PPO(observation_space, action_space, config)
 
+    # load latest checkpoint
     log_dir = f'./PPO_logs/{env_name}/{exp_name}/run_{run_num}'
     latest_checkpoint = max(glob.glob(f'{log_dir}/checkpoints/*'), key=os.path.getctime)
     # latest_checkpoint = f'{log_dir}/checkpoints/290.pth'
     print(f'resume from {latest_checkpoint}')
     ppo_agent.load(latest_checkpoint)
-    print('--------------------------------------------------------------------------------------------')
 
+    # start testing
     test_running_reward = 0
     images = []
     for ep in range(1, total_test_episodes+1):
@@ -71,16 +73,13 @@ def test(args):
         while True:
             h_in = h_out
             action, _, _, _, _, h_out = ppo_agent.select_action(state, h_in)
-            # action = ppo_agent.cal_action(np.array([state]), h_in)
             state, _, _, info = env.step(action[0])
-
             if render:
                 env.render()
                 # pygame.event.get()
                 if args.save_gif:
                     images.append(env.render())
                 time.sleep(frame_delay)
-
             if info:
                 print(f'Episode: {ep} \t\t Reward: {info["reward"]}')
                 test_running_reward += info['reward']

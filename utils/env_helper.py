@@ -6,7 +6,7 @@ from envs.CarSearch import CarSearch
 from envs.Walker2d import Walker2d
 from envs.MountainCar import MountainCar
 from envs.Hallway import Hallway
-from envs.MinigridMemory import MinigridMemory
+from envs.MinigridMemory import Minigrid
 
 
 def create_env(env_name: str, action_type: bool = False, id: int = 0, render_mode=None, time_scale=2):
@@ -14,6 +14,10 @@ def create_env(env_name: str, action_type: bool = False, id: int = 0, render_mod
 
     Args:
         env_name {str}: Name of the to be instantiated environment
+        action_type (str) -- continuous or discrete. Action type of some environment
+        id (int) -- worker id for unity environment
+        render_mode (str) --  human or rgb_arraty. Gym render mode.
+        time_scale (int) -- time scale for unity environment, higher time scale can help speed up
     Returns:
         {env}: Returns the selected environment instance.
     '''
@@ -36,6 +40,6 @@ def create_env(env_name: str, action_type: bool = False, id: int = 0, render_mod
     elif env_name == 'Hallway':
         return Hallway(file_name=f'./UnityEnvs/{env_name}', worker_id=id, time_scale=time_scale, render_mode=render_mode)
     elif "MiniGrid" in env_name:
-        return MinigridMemory(env_name, render_mode)
+        return Minigrid(env_name, render_mode)
     else:
         raise f'Unknow env: {env_name}'

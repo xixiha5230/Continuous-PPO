@@ -18,18 +18,18 @@ ppo:
   lamda: 0.95
   vf_loss_coeff: 0.3
 recurrence:
-  hidden_state_size: 64
+  hidden_state_size: 256
   layer_type: gru
   reset_hidden_state: true
-  sequence_length: 16
-  use_lstm: true
+  sequence_length: 32
+  use_lstm: false
 train:
   K_epochs: 4
   device: cuda
   env_name: Hallway
-  exp_name: lstm_seq16
+  exp_name: No_LSTM_seq32_256
   action_type: discrete
-  hidden_layer_size: 256
+  hidden_layer_size: 512
   max_updates: 300
   num_mini_batch: 8
   random_seed: 0

@@ -2,7 +2,14 @@ import gymnasium
 
 
 class CarRacing:
-    def __init__(self, action_type, render_mode=None):
+    ''' Gym car racing environment '''
+
+    def __init__(self, action_type: str, render_mode: str = None):
+        '''
+        Args:
+            action_type {str} -- action type: continuous or discrete
+            render_mode {str} -- render mode: humnan or rgb_array
+        '''
         self._env = gymnasium.make('CarRacing-v2', domain_randomize=False,
                                    continuous=True if action_type == 'continuous' else False,
                                    render_mode=render_mode)
@@ -31,7 +38,7 @@ class CarRacing:
                     'length': len(self._rewards)}
         else:
             info = None
-        return obs, reward / 10.0, done, info
+        return obs, reward, done, info
 
     def render(self):
         return self._env.render()

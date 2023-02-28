@@ -10,6 +10,8 @@ def worker_process(remote: multiprocessing.connection.Connection, env_name: str,
     Args:
         remote {multiprocessing.connection.Connection} -- Parent thread
         env_name {str} -- Name of the to be instantiated environment
+        action_type {str} -- continuous or discrete. Action type of some environment
+        id {int} -- worker id for unity environment
     '''
     # Spawn environment
     try:
@@ -30,7 +32,7 @@ def worker_process(remote: multiprocessing.connection.Connection, env_name: str,
                 remote.close()
                 break
             else:
-                raise NotImplementedError
+                raise NotImplementedError(cmd)
         except KeyboardInterrupt:
             break
         except Exception as e:
@@ -46,6 +48,8 @@ class Worker:
         '''
         Args:
             env_name (str) -- Name of the to be instantiated environment
+            action_type (str) -- continuous or discrete. Action type of some environment
+            id (int) -- worker id for unity environment
         '''
         self.child, parent = multiprocessing.Pipe()
         self.process = multiprocessing.Process(target=worker_process, args=(parent, env_name, action_type, id))

@@ -2,7 +2,14 @@ import gymnasium
 
 
 class MountainCar:
+    ''' Gym MountainCar environment '''
+
     def __init__(self, env_name, render_mode=None):
+        '''
+        Args:
+            name {str} -- name of diffrent version
+            render_mode {str} -- render mode: humnan or rgb_array
+        '''
         self._env = gymnasium.make(env_name, render_mode=render_mode)
 
     @property

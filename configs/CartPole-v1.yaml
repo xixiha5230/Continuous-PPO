@@ -27,7 +27,7 @@ train:
   K_epochs: 4
   device: cuda
   env_name: CartPole-v1
-  exp_name: discrete_lstm
+  exp_name: discrete_GRU
   action_type: discrete
   hidden_layer_size: 256
   max_updates: 30

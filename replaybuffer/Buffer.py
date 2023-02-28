@@ -7,12 +7,12 @@ import numpy as np
 class Buffer():
     '''The buffer stores and prepares the training data. It supports recurrent policies. '''
 
-    def __init__(self, config: dict, observation_space: gym_spaces, action_space) -> None:
+    def __init__(self, config: dict, observation_space: gymnasium_spaces, action_space: gymnasium_spaces) -> None:
         '''
         Args:
             config {dict} -- Configuration and hyperparameters of the environment, trainer and model.
-            observation_space {spaces.Box} -- The observation space of the agent
-            device {torch.device} -- The device that will be used for training
+            observation_space {gymnasium.spaces} -- The observation space of the agent
+            action_space {gymnasium.spaces} -- The action space of the agent
         '''
         conf_train = config['train']
         self.device = conf_train['device']
@@ -261,7 +261,7 @@ class Buffer():
             yield mini_batch
 
     def free_memory(self):
-        # Free memory
+        '''free cuda memory'''
         del(self.samples_flat)
         if self.device == 'cuda':
             torch.cuda.empty_cache()
@@ -271,8 +271,6 @@ class Buffer():
 
         Arguments:
             last_value {torch.tensor} -- Value of the last agent's state
-            gamma {float} -- Discount factor
-            lamda {float} -- GAE regularization parameter
         '''
         with torch.no_grad():
             last_advantage = 0
