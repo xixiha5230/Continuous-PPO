@@ -66,11 +66,10 @@ def conv2d_output_shape(
 class AtariImage(nn.Module):
     ''' image convolution module like Open AI Atari '''
 
-    def __init__(self, shape, out_dim):
+    def __init__(self, shape):
         '''
         Args:
             shape {tuple} -- The shape of image like (84, 84, 3)
-            out_dim {int} -- The output dimension
         '''
         super(AtariImage, self).__init__()
         conv_1_hw = conv2d_output_shape((shape[0], shape[1]), 8, 4)
@@ -85,24 +84,17 @@ class AtariImage(nn.Module):
             nn.LeakyReLU(),
         )
         self.conv.apply(weights_init_)
-
-        self.fc_w = 64 * conv_3_hw[0] * conv_3_hw[1]
-        self.fc = nn.Sequential(
-            nn.Linear(self.fc_w, out_dim),
-            nn.LeakyReLU(),
-        )
-        self.fc.apply(weights_init_)
+        self.out_dim = conv_3_hw[0] * conv_3_hw[1] * 64
 
     def forward(self, x: torch.Tensor):
         '''
         Args:
             x {torch.Tensor} -- image tensor shape like (84, 84, 3)
         '''
-        # TODO 环境采样时使用（3，84，84）
+        # TODO 环境采样时使用（3，84，84）不用每次都permute
         x = x.permute(0, 3, 1, 2)
         x = self.conv(x)
-        x = x.reshape(x.shape[0], self.fc_w)
-        x = self.fc(x)
+        x = x.reshape(x.shape[0], self.out_dim)
         return x
 
 
@@ -162,10 +154,10 @@ class StateNetUGV(nn.Module):
         super(StateNetUGV, self).__init__()
 
         self.conv1d = Conv1d(obs_space[1].shape[0] // 2, 2, 64)
-        self.conv2d = AtariImage(obs_space[0].shape, 128)
+        self.conv2d = AtariImage(obs_space[0].shape)
 
         self.fc = nn.Sequential(
-            nn.Linear(64 + 128, out_size),
+            nn.Linear(64 + self.conv2d.out_dim, out_size),
             nn.ReLU()
         )
 
@@ -190,16 +182,15 @@ class StateNetUGV(nn.Module):
 class StateNetImage(nn.Module):
     ''' single image process module '''
 
-    def __init__(self, obs_space: spaces.Tuple, out_size: int) -> None:
+    def __init__(self, obs_space: spaces.Tuple) -> None:
         '''
         Args:
             obs_space {spaces.Tuple} -- shape is (84, 84, 3)
-            out_size {int} -- output dimension
         '''
         assert obs_space.shape == (84, 84, 3)
         super(StateNetImage, self).__init__()
-        self.conv2d = AtariImage(obs_space.shape, out_size)
-        self.out_size = out_size
+        self.conv2d = AtariImage(obs_space.shape)
+        self.out_size = self.conv2d.out_dim
 
     def forward(self, state: torch.Tensor):
         '''

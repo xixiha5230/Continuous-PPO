@@ -50,7 +50,7 @@ class ActorCritic(nn.Module):
             in_features_size = obs_space.shape[0]
         # single image
         elif len(obs_space.shape) == 3:
-            self.state = StateNetImage(obs_space, 128)
+            self.state = StateNetImage(obs_space)
             in_features_size = self.state.out_size
         else:
             raise NotImplementedError(obs_space.shape)
