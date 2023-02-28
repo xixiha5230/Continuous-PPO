@@ -60,7 +60,7 @@ class ActorCritic(nn.Module):
             if self.layer_type == 'gru':
                 self.rnn = nn.GRU(in_features_size,
                                   self.hidden_state_size, batch_first=True)
-            elif self.layer_type == 'lsym':
+            elif self.layer_type == 'lstm':
                 self.recurrent_layer = nn.LSTM(in_features_size, self.hidden_state_size, batch_first=True)
             else:
                 raise NotImplementedError(self.layer_type)
