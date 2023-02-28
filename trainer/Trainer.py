@@ -62,7 +62,10 @@ class Trainer:
         dummy_env.close()
 
         print('Step 4: Init reward scaling')
-        self.reward_scaling = [RewardScaling(1, 0.99) for _ in range(self.num_workers)]
+        if self.use_reward_scaling:
+            self.reward_scaling = [RewardScaling(1, 0.99) for _ in range(self.num_workers)]
+        else:
+            print("don't use reward scaling")
 
         print('Step 5: Init buffer')
         self.buffer = Buffer(self.conf, self.obs_space, self.action_space)
@@ -105,9 +108,10 @@ class Trainer:
             latest_checkpoint = max(glob.glob(f'{self.log_dir}/checkpoints/*'), key=os.path.getctime)
             print(f'resume from {latest_checkpoint}')
             self.ppo_agent.load(latest_checkpoint)
-            reward_scaling_file = f'{self.log_dir}/reward_scaling.pkl'
-            with open(reward_scaling_file, 'rb') as f:
-                self.reward_scaling = pickle.load(f)
+            if self.use_reward_scaling:
+                reward_scaling_file = f'{self.log_dir}/reward_scaling.pkl'
+                with open(reward_scaling_file, 'rb') as f:
+                    self.reward_scaling = pickle.load(f)
         self.writer = tensorboardX.SummaryWriter(log_dir=self.log_dir)
         self.checkpoint_path = f'{self.log_dir}/checkpoints'
         if not os.path.exists(self.checkpoint_path):
@@ -196,8 +200,9 @@ class Trainer:
         # Setup initial recurrent cell states (LSTM: tuple(tensor, tensor) or GRU: tensor)
         recurrent_cell = self.ppo_agent.init_recurrent_cell_states(self.num_workers)
         # reset reward scaling
-        for rs in self.reward_scaling:
-            rs.reset()
+        if self.use_reward_scaling:
+            for rs in self.reward_scaling:
+                rs.reset()
         return obs, recurrent_cell
 
     def _sample_training_data(self) -> list:
@@ -236,7 +241,7 @@ class Trainer:
             # Retrieve step results from the environments
             for w, worker in enumerate(self.workers):
                 obs_w, reward_w, done_w, info = worker.child.recv()
-                self.buffer.rewards[w, t] = self.reward_scaling[w](reward_w)
+                self.buffer.rewards[w, t] = self.reward_scaling[w](reward_w) if self.use_reward_scaling else reward_w
                 self.buffer.dones[w, t] = done_w
                 if info:
                     # Store the information of the completed episode (e.g. total reward, episode length)
@@ -249,7 +254,8 @@ class Trainer:
                     if self.use_lstm and self.reset_hidden_state:
                         self.recurrent_cell[:, w] = self.ppo_agent.init_recurrent_cell_states(1)
                     # reset reward scaling
-                    self.reward_scaling[w].reset()
+                    if self.use_reward_scaling:
+                        self.reward_scaling[w].reset()
                 # Store latest observations
                 self.obs[w] = obs_w
 
@@ -319,6 +325,7 @@ class Trainer:
         self.action_type = self.conf_train.setdefault('action_type', 'continuous')
         self.save_model_freq = self.conf_train.setdefault('save_model_freq', 5)
         self.random_seed = self.conf_train.setdefault('random_seed', 0)
+        self.use_reward_scaling = self.conf_train.setdefault('use_reward_scaling', True)
         self.max_updates = self.conf_train.setdefault('max_updates', 150)
         self.num_mini_batch = self.conf_train.setdefault('num_mini_batch', 4)
         self.hidden_layer_size = self.conf_train.setdefault('hidden_layer_size', 256)
@@ -376,9 +383,10 @@ class Trainer:
         self.ppo_agent.save(checkpoint_file)
 
         # save reward scaling
-        reward_scaling_file = f'{self.log_dir}/reward_scaling.pkl'
-        with open(reward_scaling_file, 'wb') as f:
-            pickle.dump(self.reward_scaling, f)
+        if self.use_reward_scaling:
+            reward_scaling_file = f'{self.log_dir}/reward_scaling.pkl'
+            with open(reward_scaling_file, 'wb') as f:
+                pickle.dump(self.reward_scaling, f)
 
         # save yaml file
         self.conf_train['update'] = self.update
