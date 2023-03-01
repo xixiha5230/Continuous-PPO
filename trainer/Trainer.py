@@ -252,7 +252,12 @@ class Trainer:
                     obs_w = worker.child.recv()
                     # Reset recurrent cell states
                     if self.use_lstm and self.reset_hidden_state:
-                        self.recurrent_cell[:, w] = self.ppo_agent.init_recurrent_cell_states(1)
+                        if self.layer_type == 'lstm':
+                            rc = self.ppo_agent.init_recurrent_cell_states(1)
+                            self.recurrent_cell[0][:, w] = rc[0]
+                            self.recurrent_cell[1][:, w] = rc[1]                             
+                        else:
+                            self.recurrent_cell[:, w] = self.ppo_agent.init_recurrent_cell_states(1)
                     # reset reward scaling
                     if self.use_reward_scaling:
                         self.reward_scaling[w].reset()
