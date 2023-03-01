@@ -103,12 +103,13 @@ class ActorCritic(nn.Module):
             raise NotImplementedError(self.action_type)
 
         # critic
-        self.critic = nn.Sequential(
-            nn.Linear(self.hidden_layer_size, self.hidden_layer_size),
-            nn.ReLU(),
-            nn.Linear(self.hidden_layer_size, 1)
-        )
-        self.critic.apply(weights_init_)
+        vlaue_h = nn.Linear(self.hidden_layer_size, self.hidden_layer_size)
+        nn.init.orthogonal_(vlaue_h.weight, np.sqrt(2))
+        value = nn.Linear(self.hidden_layer_size, 1)
+        nn.init.orthogonal_(value.weight, 1)
+        self.critic = nn.Sequential()
+        self.critic.append(vlaue_h).append(nn.ReLU())
+        self.critic.append(value)
 
     def forward(self, state, hidden_in: torch.Tensor = None, sequence_length: int = 1):
         '''
