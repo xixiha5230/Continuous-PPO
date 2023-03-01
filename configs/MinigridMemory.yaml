@@ -27,12 +27,12 @@ train:
   K_epochs: 4
   device: cuda
   env_name: MiniGrid-MemoryS9-v0
-  exp_name: MinigridMemory_lstm_No_old_policy
+  exp_name: LSTM
   action_type: discrete
   hidden_layer_size: 512
   max_updates: 500
   num_mini_batch: 8
-  random_seed: 0
+  random_seed: 5230
   use_reward_scaling: true
   save_model_freq: 10
 worker:
