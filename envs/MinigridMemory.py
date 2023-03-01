@@ -1,5 +1,6 @@
+import numpy as np
 import gymnasium
-from gymnasium.spaces import Tuple, Box
+from gymnasium.spaces import Tuple, Box, Discrete
 from minigrid.wrappers import RGBImgPartialObsWrapper, ViewSizeWrapper
 
 
@@ -22,11 +23,11 @@ class Minigrid:
 
     @property
     def action_space(self):
-        return self._env.action_space
+        return Discrete(3)
 
     def reset(self):
         self._rewards = []
-        obs, _ = self._env.reset()
+        obs, _ = self._env.reset(seed=np.random.randint(0, 99))
         obs = obs["image"] / 255.0
         return obs
 

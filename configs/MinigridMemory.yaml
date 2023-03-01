@@ -5,21 +5,21 @@ ppo:
     power: 1.0
     max_decay_steps: 0
   clip_range_schedule:
-    init: 0.2
-    final: 0.2
+    init: 0.3
+    final: 0.1
     power: 1.0
-    max_decay_steps: 0
+    max_decay_steps: 500
   lr_schedule:
-    init: 3.0e-4
-    final: 3.0e-4
+    init: 6.0e-4
+    final: 1.0e-4
     power: 1.0
-    max_decay_steps: 0
+    max_decay_steps: 500
   gamma: 0.99
   lamda: 0.95
-  vf_loss_coeff: 0.25
+  vf_loss_coeff: 0.5
 recurrence:
   hidden_state_size: 256
-  layer_type: gru
+  layer_type: lstm
   reset_hidden_state: false
   sequence_length: 8
   use_lstm: true
@@ -27,12 +27,13 @@ train:
   K_epochs: 4
   device: cuda
   env_name: MiniGrid-MemoryS9-v0
-  exp_name: MinigridMemory
+  exp_name: MinigridMemory_lstm_No_old_policy
   action_type: discrete
   hidden_layer_size: 512
   max_updates: 500
   num_mini_batch: 8
   random_seed: 0
+  use_reward_scaling: true
   save_model_freq: 10
 worker:
   num_workers: 6
