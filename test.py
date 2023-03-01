@@ -12,7 +12,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     '--config',
     type=str,
-    default='PPO_logs/Hallway/No_LSTM_seq32_256/run_0/config.yaml',
+    default='PPO_logs/MiniGrid-MemoryS9-v0/MinigridMemory_lstm_No_old_policy/run_8/config.yaml',
     help='The config file',
 )
 parser.add_argument(
@@ -56,6 +56,7 @@ def test(args):
 
     # initialize a PPO agent
     ppo_agent = PPO(observation_space, action_space, config)
+    ppo_agent.policy.eval()
 
     # load latest checkpoint
     log_dir = f'./PPO_logs/{env_name}/{exp_name}/run_{run_num}'
@@ -67,23 +68,24 @@ def test(args):
     # start testing
     test_running_reward = 0
     images = []
-    for ep in range(1, total_test_episodes+1):
-        state = env.reset()
-        h_out = ppo_agent.init_recurrent_cell_states(1)
-        while True:
-            h_in = h_out
-            action, _, _, _, _, h_out = ppo_agent.select_action(state, h_in)
-            state, _, _, info = env.step(action[0])
-            if render:
-                env.render()
-                # pygame.event.get()
-                if args.save_gif:
-                    images.append(env.render())
-                time.sleep(frame_delay)
-            if info:
-                print(f'Episode: {ep} \t\t Reward: {info["reward"]}')
-                test_running_reward += info['reward']
-                break
+    with torch.no_grad():
+        for ep in range(1, total_test_episodes+1):
+            state = env.reset()
+            h_out = ppo_agent.init_recurrent_cell_states(1)
+            while True:
+                h_in = h_out
+                action, _, _, h_out = ppo_agent.select_action(PPO._state_2_tensor(state, device), h_in)
+                state, _, _, info = env.step(action[0].cpu().numpy())
+                if render:
+                    env.render()
+                    # pygame.event.get()
+                    if args.save_gif:
+                        images.append(env.render())
+                    time.sleep(frame_delay)
+                if info:
+                    print(f'Episode: {ep} \t\t Reward: {info["reward"]}')
+                    test_running_reward += info['reward']
+                    break
 
     if args.save_gif:
         imageio.mimsave(f'{log_dir}/test.gif', images)
