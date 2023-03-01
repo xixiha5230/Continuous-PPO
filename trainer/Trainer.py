@@ -78,9 +78,7 @@ class Trainer:
 
         print('Step 8: Random seed')
         if self.random_seed != 0:
-            # TODO 设置seed会导致效果不好
             torch.manual_seed(self.random_seed)
-            # self.env.seed(self.random_seed)
             np.random.seed(self.random_seed)
 
         print('Step 9: Reset workers')
@@ -255,7 +253,7 @@ class Trainer:
                         if self.layer_type == 'lstm':
                             rc = self.ppo_agent.init_recurrent_cell_states(1)
                             self.recurrent_cell[0][:, w] = rc[0]
-                            self.recurrent_cell[1][:, w] = rc[1]                             
+                            self.recurrent_cell[1][:, w] = rc[1]
                         else:
                             self.recurrent_cell[:, w] = self.ppo_agent.init_recurrent_cell_states(1)
                     # reset reward scaling
