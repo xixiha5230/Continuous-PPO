@@ -29,8 +29,10 @@ class PPO:
         self.device = self.conf_train['device']
 
         self.policy = ActorCritic(obs_space, action_space, self.config).to(self.device)
-        self.old_policy = ActorCritic(obs_space, action_space, self.config).to(self.device)
-        self.old_policy.load_state_dict(self.policy.state_dict())
+        self.policy.train()
+        # self.old_policy = ActorCritic(obs_space, action_space, self.config).to(self.device)
+        # self.old_policy.load_state_dict(self.policy.state_dict())
+        # self.old_policy.train()
         self.optimizer = torch.optim.AdamW(self.policy.parameters(), lr=self.conf_ppo['lr_schedule']['init'], eps=1e-5)
 
     def select_action(self, state, hidden_in: torch.Tensor = None):
@@ -40,32 +42,25 @@ class PPO:
             state {array} -- observations
             hidden_in {torch.Tensor} -- RNN hidden in feature
         Returns:
-            {todo_action}: action to be performed
-            {state}: state tensor
             {action}: action tensor 
             {action_logprob}: action logprob tensor
             {value}: value of current state tensor
             {hidden_out}: RNN hidden out feature tensor
         '''
+        self.policy.eval()
         with torch.no_grad():
-            if isinstance(state, list):
-                # single state
-                if not isinstance(state[0], list):
-                    state = [state]
-                state = [torch.FloatTensor(np.array([s[i] for s in state])).to(self.device)
-                         for i in range(len(state[0]))]
-            else:
-                if len(state.shape) == 1:
-                    state = [state]
-                state = torch.FloatTensor(np.array(state)).to(self.device)
-            dist, value, hidden_out = self.old_policy.forward(state, hidden_in, sequence_length=1)
+            dist, value, hidden_out = self.policy.forward(state, hidden_in, sequence_length=1)
             action = dist.sample().detach()
-
-            todo_action = action.cpu().numpy()
             action_logprob = dist.log_prob(action).detach()
-            hidden_out = hidden_out.detach() if hidden_out is not None else None
-
-            return todo_action, state, action, action_logprob, value, hidden_out
+            value = value.detach()
+            if hidden_out is not None:
+                if self.layer_type == 'lstm':
+                    hidden_out = (hidden_out[0].detach(), hidden_out[1].detach())
+                elif self.layer_type == 'gru':
+                    hidden_out = hidden_out.detach()
+                else:
+                    raise NotImplementedError(self.layer_type)
+            return action, action_logprob, value, hidden_out
 
     def evaluate(self, state, action: torch.Tensor, hidden_in: torch.Tensor, sequence_length: int):
         ''' evaluate current batch base on state and action
@@ -80,6 +75,7 @@ class PPO:
             {value}: value base on state and new action  and old action
             {dist_entropy}: action entropy 
         '''
+        self.policy.train()
         dist, value, hidden_out = self.policy.forward(state, hidden_in, sequence_length)
 
         action_logprob = dist.log_prob(action)
@@ -156,7 +152,7 @@ class PPO:
         Args:
             checkpoint_path {str} -- checkpoint path
         '''
-        torch.save(self.old_policy.state_dict(), checkpoint_path)
+        torch.save(self.policy.state_dict(), checkpoint_path)
 
     def load(self, checkpoint_path):
         ''' load policy state dict
@@ -164,7 +160,7 @@ class PPO:
             checkpoint_path {str} -- checkpoint path
         '''
         self.policy.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
-        self.old_policy.load_state_dict(self.policy.state_dict())
+        # self.old_policy.load_state_dict(self.policy.state_dict())
 
     def init_recurrent_cell_states(self, num_sequences) -> tuple:
         '''Initializes the recurrent cell states (hxs, cxs) as zeros.
@@ -184,3 +180,24 @@ class PPO:
             return hxs
         else:
             raise NotImplementedError(layer_type)
+
+    @staticmethod
+    def _state_2_tensor(state: list, device: str):
+        '''state array to tensor
+        Args:
+            state {int} -- aka observation
+            device {str} -- 'cuda' or 'cpu'
+        Returns:
+            {torch.Tensor} -- tensor of state
+        '''
+        if isinstance(state, list):
+            # single state
+            if not isinstance(state[0], list):
+                state = [state]
+            state = [torch.FloatTensor(np.array([s[i] for s in state])).to(device)
+                     for i in range(len(state[0]))]
+        else:
+            if len(state.shape) == 1:
+                state = [state]
+            state = torch.FloatTensor(np.array(state)).to(device)
+        return state

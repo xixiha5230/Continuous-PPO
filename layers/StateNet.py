@@ -77,11 +77,11 @@ class AtariImage(nn.Module):
         conv_3_hw = conv2d_output_shape(conv_2_hw, 3, 1)
         self.conv = nn.Sequential(
             nn.Conv2d(shape[2], 32, 8, 4),
-            nn.LeakyReLU(),
+            nn.ReLU(),
             nn.Conv2d(32, 64, 4, 2, 0),
-            nn.LeakyReLU(),
+            nn.ReLU(),
             nn.Conv2d(64, 64, 3, 1, 0),
-            nn.LeakyReLU(),
+            nn.ReLU(),
         )
         self.conv.apply(weights_init_)
         self.out_dim = conv_3_hw[0] * conv_3_hw[1] * 64

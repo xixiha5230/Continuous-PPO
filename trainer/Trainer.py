@@ -126,14 +126,7 @@ class Trainer:
         self.start_time = datetime.now().replace(microsecond=0)
         print('Started training at (GMT) : ', self.start_time)
 
-        for self.update in range(self.update, self.max_updates+1):
-
-            # Sample training data
-            sampled_episode_info = self._sample_training_data()
-
-            # Prepare the sampled data inside the buffer (splits data into sequences)
-            self.buffer.prepare_batch_dict()
-
+        for self.update in range(self.max_updates):
             # Parameter decay
             learning_rate = polynomial_decay(self.lr_schedule['init'], self.lr_schedule['final'],
                                              self.lr_schedule['max_decay_steps'], self.lr_schedule['pow'], self.update)
@@ -141,6 +134,13 @@ class Trainer:
                                           self.clip_range_schedule['max_decay_steps'], self.clip_range_schedule['pow'], self.update)
             entropy_coeff = polynomial_decay(self.entropy_coeff_schedule['init'], self.entropy_coeff_schedule['final'],
                                              self.entropy_coeff_schedule['max_decay_steps'], self.entropy_coeff_schedule['pow'], self.update)
+
+            # Sample training data
+            sampled_episode_info = self._sample_training_data()
+
+            # Prepare the sampled data inside the buffer (splits data into sequences)
+            self.buffer.prepare_batch_dict()
+
             # train K epochs
             for _ in range(self.K_epochs):
                 mini_batch_generator = self.buffer.recurrent_mini_batch_generator()
@@ -157,7 +157,7 @@ class Trainer:
                     total_loss_mean.append(loss)
 
             # update old policy
-            self.ppo_agent.old_policy.load_state_dict(self.ppo_agent.policy.state_dict())
+            # self.ppo_agent.old_policy.load_state_dict(self.ppo_agent.policy.state_dict())
 
             # free memory
             self.buffer.free_memory()
@@ -215,7 +215,11 @@ class Trainer:
         for t in range(self.worker_steps):
             # Gradients can be omitted for sampling training data
             with torch.no_grad():
-
+                state_t = PPO._state_2_tensor(self.obs, self.device)
+                if isinstance(state_t, list):
+                    self.buffer.obs[t] = state_t
+                else:
+                    self.buffer.obs[:, t] = state_t
                 if self.use_lstm:
                     if self.layer_type == 'gru':
                         self.buffer.hxs[:, t] = self.recurrent_cell.squeeze(0)
@@ -224,19 +228,15 @@ class Trainer:
                         self.buffer.cxs[:, t] = self.recurrent_cell[1].squeeze(0)
 
                 # Forward the model
-                action, state_t, action_t, action_logprob_t, value_t, self.recurrent_cell = self.ppo_agent.select_action(
-                    self.obs, self.recurrent_cell)
+                action_t, action_logprob_t, value_t, self.recurrent_cell = self.ppo_agent.select_action(
+                    state_t, self.recurrent_cell)
 
-                if isinstance(state_t, list):
-                    self.buffer.obs[t] = state_t
-                else:
-                    self.buffer.obs[:, t] = state_t
                 self.buffer.actions[:, t] = action_t
                 self.buffer.log_probs[:, t] = action_logprob_t
                 self.buffer.values[:, t] = value_t
             # Send actions to the environments
             for w, worker in enumerate(self.workers):
-                worker.child.send(('step', action[w]))
+                worker.child.send(('step', action_t[w].cpu().numpy()))
 
             # Retrieve step results from the environments
             for w, worker in enumerate(self.workers):
@@ -260,7 +260,7 @@ class Trainer:
                 self.obs[w] = obs_w
 
         # Calculate advantages
-        _, _, _, _, last_value_t, _ = self.ppo_agent.select_action(self.obs, self.recurrent_cell)
+        _, _, last_value_t, _ = self.ppo_agent.select_action(PPO._state_2_tensor(self.obs, self.device), self.recurrent_cell)
         self.buffer.calc_advantages(last_value_t)
         return episode_infos
 
