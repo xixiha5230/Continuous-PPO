@@ -2,17 +2,17 @@ ppo:
   entropy_coeff_schedule:
     init: 0.001
     final: 0.0001
-    power: 1.0
+    pow: 1.0
     max_decay_steps: 50
   clip_range_schedule:
     init: 0.2
     final: 0.1
-    power: 1.0
+    pow: 1.0
     max_decay_steps: 50
   lr_schedule:
     init: 3.0e-3
     final: 3.0e-6
-    power: 1.0
+    pow: 1.0
     max_decay_steps: 60
   gamma: 0.99
   lamda: 0.95

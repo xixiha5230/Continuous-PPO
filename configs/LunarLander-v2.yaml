@@ -2,17 +2,17 @@ ppo:
   entropy_coeff_schedule:
     init: 0.01
     final: 0.001
-    power: 1.0
+    pow: 1.0
     max_decay_steps: 250
   clip_range_schedule:
     init: 0.3
     final: 0.1
-    power: 1.0
+    pow: 1.0
     max_decay_steps: 250
   lr_schedule:
     init: 3.0e-3
     final: 3.0e-6
-    power: 1.0
+    pow: 1.0
     max_decay_steps: 300
   gamma: 0.99
   lamda: 0.95
@@ -27,7 +27,7 @@ train:
   K_epochs: 4
   device: cuda
   env_name: LunarLander-v2
-  exp_name: continuous_lstm
+  exp_name: continuous_gru
   action_type: continuous
   hidden_layer_size: 256
   max_updates: 300
