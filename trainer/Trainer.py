@@ -124,7 +124,7 @@ class Trainer:
         self.start_time = datetime.now().replace(microsecond=0)
         print('Started training at (GMT) : ', self.start_time)
 
-        for self.update in range(self.max_updates):
+        for self.update in range(self.update, self.max_updates):
             # Parameter decay
             learning_rate = polynomial_decay(self.lr_schedule['init'], self.lr_schedule['final'],
                                              self.lr_schedule['max_decay_steps'], self.lr_schedule['pow'], self.update)
