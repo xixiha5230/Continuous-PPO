@@ -7,6 +7,8 @@ from envs.Walker2d import Walker2d
 from envs.MountainCar import MountainCar
 from envs.Hallway import Hallway
 from envs.MinigridMemory import Minigrid
+from envs.Hoper.HopperJump import HopperJump
+from envs.Hoper.HopperRun import HopperRun
 
 
 def create_env(env_name: str, action_type: bool = False, id: int = 0, render_mode=None, time_scale=2):
@@ -39,6 +41,10 @@ def create_env(env_name: str, action_type: bool = False, id: int = 0, render_mod
         return CarSearch(file_name=f'./UnityEnvs/{env_name}', worker_id=id, time_scale=time_scale)
     elif env_name == 'Hallway':
         return Hallway(file_name=f'./UnityEnvs/{env_name}', worker_id=id, time_scale=time_scale, render_mode=render_mode)
+    elif env_name == 'HopperJump':
+        return HopperJump('mo-hopper-v4', render_mode=render_mode)
+    elif env_name == 'HopperRun':
+        return HopperRun('mo-hopper-v4', render_mode=render_mode)
     elif "MiniGrid" in env_name:
         return Minigrid(env_name, render_mode)
     else:
