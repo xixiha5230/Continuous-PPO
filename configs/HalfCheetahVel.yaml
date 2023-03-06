@@ -22,12 +22,12 @@ recurrence:
   layer_type: gru
   reset_hidden_state: true
   sequence_length: 8
-  use_lstm: false
+  use_lstm: true
 train:
   K_epochs: 4
   device: cuda
   env_name: HalfCheetahVel
-  exp_name: init
+  exp_name: MT_gru
   action_type: continuous
   hidden_layer_size: 256
   max_updates: 500
@@ -38,5 +38,8 @@ worker:
   num_workers: 6
   worker_steps: 512
 task:
-  one_hot: [1, 0, 0, 0]
-  velocity: 1
+  [
+    { one_hot: [1, 0, 0, 0], velocity: 1 },
+    { one_hot: [0, 1, 0, 0], velocity: 1.5 },
+    { one_hot: [0, 0, 1, 0], velocity: 2 },
+  ]

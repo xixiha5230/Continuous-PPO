@@ -22,14 +22,15 @@ class HalfCheetahVel(HalfCheetahBace):
         (https://homes.cs.washington.edu/~todorov/papers/TodorovIROS12.pdf)
     """
 
-    def __init__(self, task: dict = {}, low=0.0, high=2.0, render_mode=None):
+    def __init__(self, task: dict = {}, low=0.0, high=2.0, render_mode=None, id: int = 0):
         super(HalfCheetahVel, self).__init__()
         self._task = task
         self.low = low
         self.high = high
         self.render_mode = render_mode
-        self._goal_vel = task.setdefault('velocity', 0.0)
-        self._one_hot = task.setdefault('one_hot', [0])
+        task_num = len(self._task)
+        self._goal_vel = self._task[id % task_num].get('velocity', 0.0)
+        self._one_hot = self._task[id % task_num].get('one_hot', [0])
         self.observation_space = Tuple([Box(float('-inf'), float('inf'), (len(super()._get_obs()),), np.float32),
                                         Box(0, 1, (len(self._one_hot),), np.float32)])
 
