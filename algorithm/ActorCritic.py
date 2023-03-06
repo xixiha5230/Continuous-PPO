@@ -6,6 +6,7 @@ import numpy as np
 # TODO Use tuple?
 from gymnasium import spaces
 from layers.StateNet import StateNetUGV, StateNetImage, weights_init_
+from layers.TaskNet import VectorWithTask
 
 
 class ActorCritic(nn.Module):
@@ -44,6 +45,11 @@ class ActorCritic(nn.Module):
             # UGV
             if(obs_space[0].shape == (84, 84, 3)):
                 self.state = StateNetUGV(obs_space, 192)
+            # Simple Vector With Task ID
+            elif len(obs_space[0].shape) == 1:
+                self.state = VectorWithTask(obs_space)
+            else:
+                raise NotImplementedError(obs_space)
             in_features_size = self.state.out_size
         # simple vector
         elif len(obs_space.shape) == 1:
