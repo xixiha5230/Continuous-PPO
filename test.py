@@ -93,7 +93,6 @@ def test(args):
 
     print('============================================================================================')
     avg_test_reward = test_running_reward / total_test_episodes
-    avg_test_reward = round(avg_test_reward, 2)
     print('average test reward : ' + str(avg_test_reward))
     print('============================================================================================')
 
