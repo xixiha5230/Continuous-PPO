@@ -30,9 +30,6 @@ class PPO:
 
         self.policy = ActorCritic(obs_space, action_space, self.config).to(self.device)
         self.policy.train()
-        # self.old_policy = ActorCritic(obs_space, action_space, self.config).to(self.device)
-        # self.old_policy.load_state_dict(self.policy.state_dict())
-        # self.old_policy.train()
         self.optimizer = torch.optim.AdamW(self.policy.parameters(), lr=self.conf_ppo['lr_schedule']['init'], eps=1e-5)
 
     def select_action(self, state, hidden_in: torch.Tensor = None):
