@@ -44,8 +44,7 @@ def test(args):
     frame_delay = 0.01
     total_test_episodes = 1 if args.save_gif else 10
 
-    env = create_env(env_name, action_type=action_type,
-                     render_mode='rgb_array' if args.save_gif else 'human', id=100, time_scale=1)
+    env = create_env(config, render_mode='rgb_array' if args.save_gif else 'human', id=100, time_scale=1)
     observation_space = env.observation_space
     if action_type == 'continuous':
         action_space = env.action_space

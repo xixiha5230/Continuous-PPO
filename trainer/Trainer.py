@@ -51,7 +51,7 @@ class Trainer:
         signal.signal(signal.SIGINT, self._signal_handler)
 
         print('Step 3: Obtain the action space and observation space')
-        dummy_env = create_env(self.env_name, self.action_type)
+        dummy_env = create_env(self.conf)
         self.obs_space = dummy_env.observation_space
         if self.action_type == 'continuous':
             self.action_space = dummy_env.action_space
@@ -74,7 +74,7 @@ class Trainer:
         self.ppo_agent = PPO(self.obs_space, self.action_space, self.conf)
 
         print('Step 7: Init environment workers')
-        self.workers = [Worker(self.env_name, self.action_type, w) for w in range(self.num_workers)]
+        self.workers = [Worker(self.conf, w) for w in range(self.num_workers)]
 
         print('Step 8: Random seed')
         if self.random_seed != 0:

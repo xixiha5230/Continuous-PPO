@@ -9,20 +9,24 @@ from envs.Hallway import Hallway
 from envs.MinigridMemory import Minigrid
 from envs.Hoper.HopperJump import HopperJump
 from envs.Hoper.HopperRun import HopperRun
+from envs.HalfCheetah.HalfCheetahVel import HalfCheetahVel
+from envs.HalfCheetah.HalfCheetahDir import HalfCheetahDir
 
 
-def create_env(env_name: str, action_type: bool = False, id: int = 0, render_mode=None, time_scale=2):
+def create_env(conf: dict, id: int = 0, render_mode=None, time_scale=2):
     '''Initializes an environment based on the provided environment name.
 
     Args:
-        env_name {str}: Name of the to be instantiated environment
-        action_type (str) -- continuous or discrete. Action type of some environment
+        conf {dict} -- configure file
         id (int) -- worker id for unity environment
         render_mode (str) --  human or rgb_arraty. Gym render mode.
         time_scale (int) -- time scale for unity environment, higher time scale can help speed up
     Returns:
         {env}: Returns the selected environment instance.
     '''
+    env_name = conf['train']['env_name']
+    action_type = conf['train']['action_type']
+    task = conf.get('task', None)
     if env_name == 'LunarLander-v2':
         return LunarLander(action_type=action_type, render_mode=render_mode)
     elif env_name == 'BipedalWalker-v3':
@@ -45,6 +49,10 @@ def create_env(env_name: str, action_type: bool = False, id: int = 0, render_mod
         return HopperJump('mo-hopper-v4', render_mode=render_mode)
     elif env_name == 'HopperRun':
         return HopperRun('mo-hopper-v4', render_mode=render_mode)
+    elif env_name == 'HalfCheetahVel':
+        return HalfCheetahVel(task=task, render_mode=render_mode)
+    elif env_name == 'HalfCheetahDir':
+        return HalfCheetahDir(task=task, render_mode=render_mode)
     elif "MiniGrid" in env_name:
         return Minigrid(env_name, render_mode)
     else:
