@@ -303,7 +303,6 @@ class Trainer:
         print('Finished training at (GMT) : ', end_time)
         print('Total training time  : ', end_time - self.start_time)
         print('============================================================================================')
-        exit(0)
 
     def _config_check(self):
         '''check configuration file'''
