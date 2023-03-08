@@ -15,8 +15,10 @@ class TaskNet(nn.Module):
         super(TaskNet, self).__init__()
 
         self.fc = nn.Sequential(
-            nn.Linear(in_dim, out_dim),
-            nn.ReLU()
+            nn.Linear(in_dim, 64),
+            nn.ReLU(),
+            nn.Linear(64, out_dim),
+            nn.ReLU(),
         )
         self.fc.apply(weights_init_)
 
