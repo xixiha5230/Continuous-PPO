@@ -1,11 +1,8 @@
-from envs.CarRace import CarRace
 from envs.LunarLander import LunarLander
 from envs.CartPole import CartPole
 from envs.CarRacing import CarRacing
-from envs.CarSearch import CarSearch
 from envs.Walker2d import Walker2d
 from envs.MountainCar import MountainCar
-from envs.Hallway import Hallway
 from envs.MinigridMemory import Minigrid
 from envs.Hoper.HopperJump import HopperJump
 from envs.Hoper.HopperRun import HopperRun
@@ -40,19 +37,22 @@ def create_env(conf: dict, id: int = 0, render_mode=None, time_scale=2):
     elif env_name == 'Walker2d-v4' or env_name == 'Walker2d-v2':
         return Walker2d(env_name, render_mode=render_mode)
     elif env_name == 'CarRace' or env_name == 'CarRace_NoReset':
+        from envs.CarRace import CarRace
         return CarRace(file_name=f'./UnityEnvs/{env_name}', worker_id=id, time_scale=time_scale)
     elif env_name == 'CarSearch' or env_name == 'CarSearch_NoReset' or env_name == 'CarSearchCkpt':
+        from envs.CarSearch import CarSearch
         return CarSearch(file_name=f'./UnityEnvs/{env_name}', worker_id=id, time_scale=time_scale)
     elif env_name == 'Hallway':
+        from envs.Hallway import Hallway
         return Hallway(file_name=f'./UnityEnvs/{env_name}', worker_id=id, time_scale=time_scale, render_mode=render_mode)
     elif env_name == 'HopperJump':
         return HopperJump('mo-hopper-v4', render_mode=render_mode)
     elif env_name == 'HopperRun':
         return HopperRun('mo-hopper-v4', render_mode=render_mode)
     elif env_name == 'HalfCheetahVel':
-        return HalfCheetahVel(task=task, render_mode=render_mode)
+        return HalfCheetahVel(task=task, render_mode=render_mode, id=id)
     elif env_name == 'HalfCheetahDir':
-        return HalfCheetahDir(task=task, render_mode=render_mode)
+        return HalfCheetahDir(task=task, render_mode=render_mode, id=id)
     elif "MiniGrid" in env_name:
         return Minigrid(env_name, render_mode)
     else:
