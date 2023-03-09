@@ -84,7 +84,7 @@ class AtariImage(nn.Module):
             nn.ReLU(),
         )
         self.conv.apply(weights_init_)
-        self.out_dim = conv_3_hw[0] * conv_3_hw[1] * 64
+        self.out_size = conv_3_hw[0] * conv_3_hw[1] * 64
 
     def forward(self, x: torch.Tensor):
         '''
@@ -94,19 +94,19 @@ class AtariImage(nn.Module):
         # TODO 环境采样时使用（3，84，84）不用每次都permute
         x = x.permute(0, 3, 1, 2)
         x = self.conv(x)
-        x = x.reshape(x.shape[0], self.out_dim)
+        x = x.reshape(x.shape[0], self.out_size)
         return x
 
 
 class Conv1d(nn.Module):
     ''' dense sensor data convolution module '''
 
-    def __init__(self, length: int, channel: int, out_dim: int):
+    def __init__(self, length: int, channel: int, out_size: int):
         '''
         Args:
             length {int} -- data length
             channel {int} -- data chanel
-            out_dim {int} -- output dimension
+            out_size {int} -- output dimension
         '''
         super(Conv1d, self).__init__()
 
@@ -114,18 +114,19 @@ class Conv1d(nn.Module):
         conv_2_l = conv1d_output_size(conv_1_l, 4, 2)
         self.conv = nn.Sequential(
             nn.Conv1d(channel, 16, 8, 4),
-            nn.LeakyReLU(),
+            nn.ReLU(),
             nn.Conv1d(16, 32, 4, 2),
-            nn.LeakyReLU(),
+            nn.ReLU(),
         )
         self.conv.apply(weights_init_)
 
         self.fc_input = conv_2_l * 32
         self.fc = nn.Sequential(
-            nn.Linear(self.fc_input, out_dim),
-            nn.LeakyReLU()
+            nn.Linear(self.fc_input, out_size),
+            nn.ReLU()
         )
         self.fc.apply(weights_init_)
+        self.out_size = out_size
 
     def forward(self, x: torch.Tensor):
         '''
@@ -140,29 +141,50 @@ class Conv1d(nn.Module):
         return x
 
 
+class UGVImage(nn.Module):
+    ''' UGV image data convolution module '''
+
+    def __init__(self, shape, out_size) -> None:
+        '''
+        Args:
+            shape {int} -- image shape
+            out_size {int} -- output dimension
+        '''
+        super(UGVImage, self).__init__()
+        self.conv2d = AtariImage(shape)
+        self.fc_input = self.conv2d.out_size
+        self.fc = nn.Sequential(
+            nn.Linear(self.fc_input, out_size),
+            nn.ReLU()
+        )
+        self.fc.apply(weights_init_)
+        self.out_size = out_size
+
+    def forward(self, x: torch.Tensor):
+        '''
+        Args:
+            x {torch.Tensor} -- tensor of sensor data shape like (batch, 84,84,3)
+        '''
+        x = self.conv2d(x)
+        x = self.fc(x)
+        return x
+
+
 class StateNetUGV(nn.Module):
     ''' UGV environment data process module '''
 
-    def __init__(self, obs_space: spaces.Tuple, out_size: int) -> None:
+    def __init__(self, obs_space: spaces.Tuple) -> None:
         '''
         Args:
             obs_space {spaces.Tuple} -- shape is ((84, 84, 3), (400, ))
-            out_size {int} -- output dimension
         '''
         assert obs_space[0].shape == (84, 84, 3)
         assert obs_space[1].shape == (400,)
         super(StateNetUGV, self).__init__()
 
         self.conv1d = Conv1d(obs_space[1].shape[0] // 2, 2, 64)
-        self.conv2d = AtariImage(obs_space[0].shape)
-
-        self.fc = nn.Sequential(
-            nn.Linear(64 + self.conv2d.out_dim, out_size),
-            nn.ReLU()
-        )
-
-        self.out_size = out_size
-        self.fc.apply(weights_init_)
+        self.conv2d = UGVImage(obs_space[0].shape, 64)
+        self.out_size = self.conv1d.out_size + self.conv2d.out_size
 
     def forward(self, state: list):
         '''
@@ -175,7 +197,7 @@ class StateNetUGV(nn.Module):
         img = self.conv2d(img_batch)
         ray = self.conv1d(ray_batch)
 
-        x = self.fc(torch.cat([img, ray], dim=-1))
+        x = torch.cat([img, ray], dim=-1)
         return x
 
 
@@ -190,7 +212,7 @@ class StateNetImage(nn.Module):
         assert obs_space.shape == (84, 84, 3)
         super(StateNetImage, self).__init__()
         self.conv2d = AtariImage(obs_space.shape)
-        self.out_size = self.conv2d.out_dim
+        self.out_size = self.conv2d.out_size
 
     def forward(self, state: torch.Tensor):
         '''
