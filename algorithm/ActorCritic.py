@@ -4,7 +4,8 @@ from torch.distributions import Categorical, Normal
 
 import numpy as np
 # TODO Use tuple?
-from gymnasium import spaces
+from gym import spaces as gym_spaces
+from gymnasium import spaces as gymnasium_spaces
 from layers.StateNet import StateNetUGV, StateNetImage, weights_init_
 from layers.TaskNet import VectorWithTask
 
@@ -41,10 +42,10 @@ class ActorCritic(nn.Module):
             raise NotImplementedError(self.action_type)
         self.obs_space = obs_space
         # complex input
-        if isinstance(obs_space, spaces.Tuple):
+        if isinstance(obs_space, gym_spaces.Tuple) or isinstance(obs_space, gymnasium_spaces.Tuple):
             # UGV
             if(obs_space[0].shape == (84, 84, 3)):
-                self.state = StateNetUGV(obs_space, 192)
+                self.state = StateNetUGV(obs_space)
             # Simple Vector With Task ID
             elif len(obs_space[0].shape) == 1:
                 self.state = VectorWithTask(obs_space)
@@ -129,7 +130,7 @@ class ActorCritic(nn.Module):
             {hidden_out}: RNN hidden out feature  
         '''
         # complex input or image
-        if isinstance(self.obs_space, spaces.Tuple) or len(self.obs_space.shape) == 3:
+        if isinstance(self.obs_space, gymnasium_spaces.Tuple) or isinstance(self.obs_space, gym_spaces.Tuple) or len(self.obs_space.shape) == 3:
             feature = self.state(state)
         else:
             feature = state

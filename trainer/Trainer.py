@@ -13,7 +13,8 @@ from algorithm.PPO import PPO
 from utils.env_helper import create_env
 from replaybuffer.Buffer import Buffer
 from worker.Worker import Worker
-from gymnasium import spaces
+from gymnasium import spaces as gymnasium_spaces
+from gym import spaces as gym_spaces
 from utils.polynomial_decay import polynomial_decay
 from normalization.RewardScaling import RewardScaling
 
@@ -185,7 +186,7 @@ class Trainer:
 
     def _reset_env(self):
         ''' reset all environment in workers '''
-        if isinstance(self.obs_space, spaces.Tuple):
+        if isinstance(self.obs_space, gym_spaces.Tuple) or isinstance(self.obs_space, gymnasium_spaces.Tuple):
             obs = [[np.zeros(t.shape, dtype=np.float32) for t in self.obs_space] for _ in range(self.num_workers)]
         else:
             obs = np.zeros((self.num_workers,) + self.obs_space.shape, dtype=np.float32)
