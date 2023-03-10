@@ -209,7 +209,7 @@ class StateNetImage(nn.Module):
         Args:
             obs_space {spaces.Tuple} -- shape is (84, 84, 3)
         '''
-        assert obs_space.shape == (84, 84, 3)
+        assert obs_space.shape == (84, 84, 3) or obs_space.shape == (96, 96, 3)
         super(StateNetImage, self).__init__()
         self.conv2d = AtariImage(obs_space.shape)
         self.out_size = self.conv2d.out_size
