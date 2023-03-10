@@ -2,15 +2,15 @@
 
 ## 参考
 
-- [conv1d、conv2d网络]([GitHub - BlueFisher/Advanced-Soft-Actor-Critic: Soft Actor-Critic with advanced features](https://github.com/BlueFisher/Advanced-Soft-Actor-Critic))
+- [conv1d、conv2d网络](https://github.com/BlueFisher/Advanced-Soft-Actor-Critic)
 
-- [lstm、多线程]([GitHub - MarcoMeter/recurrent-ppo-truncated-bptt: Baseline implementation of recurrent PPO using truncated BPTT](https://github.com/MarcoMeter/recurrent-ppo-truncated-bptt))
+- [lstm、多线程](https://github.com/MarcoMeter/recurrent-ppo-truncated-bptt)
 
-- [PPO精简实现]([GitHub - seungeunrho/minimalRL: Implementations of basic RL algorithms with minimal lines of codes! (pytorch based)](https://github.com/seungeunrho/minimalRL))
+- [PPO精简实现](https://github.com/seungeunrho/minimalRL)
 
 - [PPO实现](https://github.com/nikhilbarhate99/PPO-PyTorch)
 
-- [ppo优化技巧]([GitHub - Lizhi-sjtu/DRL-code-pytorch: Concise pytorch implements of DRL algorithms, including REINFORCE, A2C, DQN, PPO(discrete and continuous), DDPG, TD3, SAC.](https://github.com/Lizhi-sjtu/DRL-code-pytorch)) 
+- [ppo优化技巧](https://github.com/Lizhi-sjtu/DRL-code-pytorch)
 
 ## 功能
 
