@@ -22,4 +22,7 @@ if __name__ == '__main__':
     for _ in range(10):
         trainer = Trainer(args.config_file, args.exp_name)
         trainer.run()
-        trainer.close()
+        if trainer.stop_signal:
+            break
+        else:
+            trainer.close()

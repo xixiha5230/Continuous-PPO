@@ -50,6 +50,7 @@ class Trainer:
 
         print('Step 2: Listen for keyboard interrupts to save the model')
         signal.signal(signal.SIGINT, self._signal_handler)
+        self.stop_signal = False
 
         print('Step 3: Obtain the action space and observation space')
         dummy_env = create_env(self.conf)
@@ -136,7 +137,13 @@ class Trainer:
                                              self.entropy_coeff_schedule['max_decay_steps'], self.entropy_coeff_schedule['pow'], self.update)
 
             # Sample training data
-            sampled_episode_info = self._sample_training_data()
+            try:
+                sampled_episode_info = self._sample_training_data()
+            except EOFError as e:
+                if self.stop_signal:
+                    break
+                else:
+                    raise e
 
             # Prepare the sampled data inside the buffer (splits data into sequences)
             if self.multi_task:
@@ -430,8 +437,14 @@ class Trainer:
         if not done:
             self._save()
         self.writer.close()
-        for worker in self.workers:
-            worker.child.send(('close', None))
+        try:
+            for worker in self.workers:
+                worker.child.send(('close', None))
+        except BrokenPipeError as e:
+            if self.stop_signal:
+                pass
+            else:
+                raise e
         print('============================================================================================')
         end_time = datetime.now().replace(microsecond=0)
         print('Started training at (GMT) : ', self.start_time)
@@ -538,4 +551,5 @@ class Trainer:
 
     def _signal_handler(self, sig, frame):
         '''save when keyboard interrupt'''
+        self.stop_signal = True
         self.close(done=False)
