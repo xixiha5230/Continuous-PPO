@@ -61,9 +61,13 @@ class CarRace:
 
 
 if __name__ == '__main__':
-    env = CarRace(file_name='UnityEnvs/CarRace', worker_id=0, time_scale=1)
+    import cv2
+    file_name = 'UnityEnvs/CarRace'
+    env = CarRace(file_name=file_name, worker_id=0, time_scale=1)
     while True:
         done = False
         obs = env.reset()
         while not done:
             obs, reward, done, info = env.step(env.action_space.sample())
+            cv2.imshow('Video', cv2.cvtColor(obs[0], cv2.COLOR_RGB2BGR))
+            cv2.waitKey(1)
