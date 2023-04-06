@@ -18,6 +18,7 @@ class Buffer():
         self.device = conf_train['device']
         self.n_mini_batches = conf_train['num_mini_batch']
         self.action_type = conf_train['action_type']
+        self.multi_task = conf_train['multi_task']
 
         conf_recurrence = config['recurrence']
         hidden_state_size = conf_recurrence['hidden_state_size']
@@ -25,7 +26,11 @@ class Buffer():
         self.sequence_length = conf_recurrence['sequence_length']
 
         worker = config['worker']
-        self.n_workers = worker['num_workers']
+        if self.multi_task:
+            self.task_num = len(config.get('task', []))
+            self.n_workers = worker['num_workers'] // self.task_num
+        else:
+            self.n_workers = worker['num_workers']
         self.worker_steps = worker['worker_steps']
 
         conf_ppo = config['ppo']

@@ -170,7 +170,7 @@ class UGVImage(nn.Module):
         return x
 
 
-class StateNetUGV(nn.Module):
+class ObsNetUGV(nn.Module):
     ''' UGV environment data process module '''
 
     def __init__(self, obs_space: spaces.Tuple) -> None:
@@ -180,19 +180,19 @@ class StateNetUGV(nn.Module):
         '''
         assert obs_space[0].shape == (84, 84, 3)
         assert obs_space[1].shape == (400,)
-        super(StateNetUGV, self).__init__()
+        super(ObsNetUGV, self).__init__()
 
         self.conv1d = Conv1d(obs_space[1].shape[0] // 2, 2, 64)
         self.conv2d = UGVImage(obs_space[0].shape, 64)
         self.out_size = self.conv1d.out_size + self.conv2d.out_size
 
-    def forward(self, state: list):
+    def forward(self, obs: list):
         '''
         Args:
-            state {list} -- state is list of [image tensor, sensor tensor]
+            obs {list} -- state is list of [image tensor, sensor tensor]
         '''
-        img_batch = state[0]
-        ray_batch = state[1]
+        img_batch = obs[0]
+        ray_batch = obs[1]
 
         img = self.conv2d(img_batch)
         ray = self.conv1d(ray_batch)
@@ -201,7 +201,7 @@ class StateNetUGV(nn.Module):
         return x
 
 
-class StateNetImage(nn.Module):
+class ObsNetImage(nn.Module):
     ''' single image process module '''
 
     def __init__(self, obs_space: spaces.Tuple) -> None:
@@ -210,16 +210,16 @@ class StateNetImage(nn.Module):
             obs_space {spaces.Tuple} -- shape is (84, 84, 3)
         '''
         assert obs_space.shape == (84, 84, 3) or obs_space.shape == (96, 96, 3)
-        super(StateNetImage, self).__init__()
+        super(ObsNetImage, self).__init__()
         self.conv2d = AtariImage(obs_space.shape)
         self.out_size = self.conv2d.out_size
 
-    def forward(self, state: torch.Tensor):
+    def forward(self, obs: torch.Tensor):
         '''
         Args:
-            state {torch.Tensor} -- tensor of image 
+            obs {torch.Tensor} -- tensor of image 
         '''
-        if len(state.shape) == 3:
-            state = state.unsqueeze(0)
-        x = self.conv2d(state)
+        if len(obs.shape) == 3:
+            obs = obs.unsqueeze(0)
+        x = self.conv2d(obs)
         return x

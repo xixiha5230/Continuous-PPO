@@ -20,7 +20,7 @@ from normalization.RewardScaling import RewardScaling
 
 
 class Trainer:
-    ''' 
+    '''
     1. Read the config file and checking
     2. Listen for keyboard interrupts to save the model
     3. Obtain the action space and observation space
@@ -69,7 +69,11 @@ class Trainer:
             print("don't use reward scaling")
 
         print('Step 5: Init buffer')
-        self.buffer = Buffer(self.conf, self.obs_space, self.action_space)
+        if self.multi_task:
+            self.task_num = len(self.conf.get('task', []))
+            self.buffer = [Buffer(self.conf, self.obs_space, self.action_space) for _ in range(self.task_num)]
+        else:
+            self.buffer = Buffer(self.conf, self.obs_space, self.action_space)
 
         print('Step 6: Init model and optimizer')
         self.ppo_agent = PPO(self.obs_space, self.action_space, self.conf)
@@ -86,35 +90,32 @@ class Trainer:
         self.obs, self.recurrent_cell = self._reset_env()
 
         print('Step 10: Set log files')
-        self.log_dir = f'PPO_logs/{self.env_name}/{self.exp_name}'
-        if not os.path.exists(self.log_dir):
-            os.makedirs(self.log_dir)
+        self.log_dir = os.path.join('PPO_logs', self.env_name, self.exp_name)
+        os.makedirs(self.log_dir, exist_ok=True)
         num_files = next(os.walk(self.log_dir))[1]
         self.run_num = self.conf_train.setdefault('run_num', len(num_files))
-        self.log_dir = f'{self.log_dir}/run_{self.run_num}'
-        log_f_name = f'{self.log_dir}/reward.csv'
+        self.log_dir = os.path.join(self.log_dir, f'run_{self.run_num}')
+        log_f_name = os.path.join(self.log_dir, 'reward.csv')
 
         print('Step 11: Check resume')
         if not self.resume:
-            if not os.path.exists(self.log_dir):
-                os.makedirs(self.log_dir)
-            else:
+            if os.path.exists(self.log_dir):
                 raise FileExistsError(f'{self.log_dir} already exists!')
+            os.makedirs(self.log_dir)
             self.log_f = open(log_f_name, 'a+')
             self.log_f.write('update,\tepisode,\treward\n')
         else:
             self.log_f = open(log_f_name, 'a+')
-            latest_checkpoint = max(glob.glob(f'{self.log_dir}/checkpoints/*'), key=os.path.getctime)
+            latest_checkpoint = max(glob.glob(os.path.join(self.log_dir, 'checkpoints', '*')), key=os.path.getctime)
             print(f'resume from {latest_checkpoint}')
             self.ppo_agent.load(latest_checkpoint)
             if self.use_reward_scaling:
-                reward_scaling_file = f'{self.log_dir}/reward_scaling.pkl'
+                reward_scaling_file = os.path.join(self.log_dir, 'reward_scaling.pkl')
                 with open(reward_scaling_file, 'rb') as f:
                     self.reward_scaling = pickle.load(f)
         self.writer = tensorboardX.SummaryWriter(log_dir=self.log_dir)
-        self.checkpoint_path = f'{self.log_dir}/checkpoints'
-        if not os.path.exists(self.checkpoint_path):
-            os.makedirs(self.checkpoint_path)
+        self.checkpoint_path = os.path.join(self.log_dir, 'checkpoints')
+        os.makedirs(self.checkpoint_path, exist_ok=True)
         print('save checkpoint path : ' + self.checkpoint_path)
 
     def run(self):
@@ -138,28 +139,48 @@ class Trainer:
             sampled_episode_info = self._sample_training_data()
 
             # Prepare the sampled data inside the buffer (splits data into sequences)
-            self.buffer.prepare_batch_dict()
+            if self.multi_task:
+                for b in self.buffer:
+                    b.prepare_batch_dict()
+            else:
+                self.buffer.prepare_batch_dict()
 
             # train K epochs
             for _ in range(self.K_epochs):
-                mini_batch_generator = self.buffer.recurrent_mini_batch_generator()
+                if self.multi_task:
+                    mini_batch_generator = [b.recurrent_mini_batch_generator() for b in self.buffer]
+                else:
+                    mini_batch_generator = self.buffer.recurrent_mini_batch_generator()
                 actor_loss_mean = []
                 critic_loss_mean = []
                 dist_entropy_mean = []
                 total_loss_mean = []
-                for mini_batch in mini_batch_generator:
-                    actor_loss, critic_loss, loss, dist_entropy = self.ppo_agent._train_mini_batch(
-                        learning_rate, clip_range, entropy_coeff, mini_batch, self.buffer.actual_sequence_length)
-                    actor_loss_mean.append(actor_loss)
-                    critic_loss_mean.append(critic_loss)
-                    dist_entropy_mean.append(dist_entropy)
-                    total_loss_mean.append(loss)
+                if self.multi_task:
+                    for mini_batch in self._multi_buff_mini_batch_generator(mini_batch_generator):
+                        actor_loss, critic_loss, loss, dist_entropy = self.ppo_agent.train_mini_batch(
+                            learning_rate, clip_range, entropy_coeff, mini_batch, self.buffer[0].actual_sequence_length)
+                        actor_loss_mean.append(actor_loss)
+                        critic_loss_mean.append(critic_loss)
+                        dist_entropy_mean.append(dist_entropy)
+                        total_loss_mean.append(loss)
+                else:
+                    for mini_batch in mini_batch_generator:
+                        actor_loss, critic_loss, loss, dist_entropy = self.ppo_agent.train_mini_batch(
+                            learning_rate, clip_range, entropy_coeff, mini_batch, self.buffer.actual_sequence_length)
+                        actor_loss_mean.append(actor_loss)
+                        critic_loss_mean.append(critic_loss)
+                        dist_entropy_mean.append(dist_entropy)
+                        total_loss_mean.append(loss)
 
             # update old policy
             # self.ppo_agent.old_policy.load_state_dict(self.ppo_agent.policy.state_dict())
 
             # free memory
-            self.buffer.free_memory()
+            if self.multi_task:
+                for b in self.buffer:
+                    b.free_memory()
+            else:
+                self.buffer.free_memory()
 
             # write logs
             self.i_episode += len(sampled_episode_info)
@@ -184,9 +205,17 @@ class Trainer:
             if self.update != 0 and self.update % self.save_model_freq == 0:
                 self._save()
 
+    def _multi_buff_mini_batch_generator(self, mini_batch_generators: list):
+        while True:
+            try:
+                mini_batch = [next(mg) for mg in mini_batch_generators]
+                yield mini_batch
+            except StopIteration:
+                break
+
     def _reset_env(self):
         ''' reset all environment in workers '''
-        if isinstance(self.obs_space, gym_spaces.Tuple) or isinstance(self.obs_space, gymnasium_spaces.Tuple):
+        if isinstance(self.obs_space, (gym_spaces.Tuple, gymnasium_spaces.Tuple)):
             obs = [[np.zeros(t.shape, dtype=np.float32) for t in self.obs_space] for _ in range(self.num_workers)]
         else:
             obs = np.zeros((self.num_workers,) + self.obs_space.shape, dtype=np.float32)
@@ -216,32 +245,73 @@ class Trainer:
             with torch.no_grad():
                 state_t = PPO._state_2_tensor(self.obs, self.device)
                 if isinstance(state_t, list):
-                    self.buffer.obs[t] = state_t
+                    if self.multi_task:
+                        # gnenrate select mask TODO 一次初始化就行
+                        self.mask, self.indices = self._state_classified_mask(state_t)
+                        self.buffer_mask = torch.arange(0, self.num_workers).reshape(
+                            self.task_num, self.num_workers // self.task_num).to(self.device)
+                        reshaped_state_t = [torch.index_select(s, 0, torch.cat(self.mask)) for s in state_t]
+                        for i, m in enumerate(self.buffer_mask):
+                            self.buffer[i].obs[t] = [torch.index_select(v, 0, m) for v in reshaped_state_t]
+                    else:
+                        self.buffer.obs[t] = state_t
                 else:
+                    assert self.multi_task == False
                     self.buffer.obs[:, t] = state_t
                 if self.use_lstm:
                     if self.layer_type == 'gru':
-                        self.buffer.hxs[:, t] = self.recurrent_cell.squeeze(0)
+                        # save to diffrent buffer,self.recurrent_cell already shaped
+                        if self.multi_task:
+                            for i, m in enumerate(self.buffer_mask):
+                                self.buffer[i].hxs[:, t] = torch.index_select(self.recurrent_cell.squeeze(0), 0, m)
+                        else:
+                            self.buffer.hxs[:, t] = self.recurrent_cell.squeeze(0)
                     elif self.layer_type == 'lstm':
-                        self.buffer.hxs[:, t] = self.recurrent_cell[0].squeeze(0)
-                        self.buffer.cxs[:, t] = self.recurrent_cell[1].squeeze(0)
+                        # save to diffrent buffer,self.recurrent_cell already shaped
+                        if self.multi_task:
+                            for i, m in enumerate(self.buffer_mask):
+                                self.buffer[i].hxs[:, t] = torch.index_select(self.recurrent_cell[0].squeeze(0), 0, m)
+                                self.buffer[i].hxs[:, t] = torch.index_select(self.recurrent_cell[1].squeeze(0), 0, m)
+                        else:
+                            self.buffer.hxs[:, t] = self.recurrent_cell[0].squeeze(0)
+                            self.buffer.cxs[:, t] = self.recurrent_cell[1].squeeze(0)
 
                 # Forward the model
-                action_t, action_logprob_t, value_t, self.recurrent_cell = self.ppo_agent.select_action(
-                    state_t, self.recurrent_cell)
-
-                self.buffer.actions[:, t] = action_t
-                self.buffer.log_probs[:, t] = action_logprob_t
-                self.buffer.values[:, t] = value_t
+                if self.multi_task:
+                    action_t, action_logprob_t, value_t, self.recurrent_cell = self._multi_task_select_action(
+                        reshaped_state_t, self.buffer_mask)
+                else:
+                    action_t, action_logprob_t, value_t, self.recurrent_cell = self.ppo_agent.select_action(
+                        state_t, self.recurrent_cell)
+                if self.multi_task:
+                    # save to diffrent buffer
+                    for i, m in enumerate(self.buffer_mask):
+                        self.buffer[i].actions[:, t] = torch.index_select(action_t, 0, m)
+                        self.buffer[i].log_probs[:, t] = torch.index_select(action_logprob_t, 0, m)
+                        self.buffer[i].values[:, t] = torch.index_select(value_t, 0, m)
+                else:
+                    self.buffer.actions[:, t] = action_t
+                    self.buffer.log_probs[:, t] = action_logprob_t
+                    self.buffer.values[:, t] = value_t
             # Send actions to the environments
+            if self.multi_task:
+                # reshape to worker shape TODO 计算一次就行
+                original_order = torch.argsort(torch.cat(self.mask))
+                restored_action_t = torch.index_select(action_t, 0, original_order)
             for w, worker in enumerate(self.workers):
-                worker.child.send(('step', action_t[w].cpu().numpy()))
+                worker.child.send(('step', restored_action_t[w].cpu().numpy()
+                                  if self.multi_task else state_t[w].cpu().numpy()))
 
             # Retrieve step results from the environments
             for w, worker in enumerate(self.workers):
                 obs_w, reward_w, done_w, info = worker.child.recv()
-                self.buffer.rewards[w, t] = self.reward_scaling[w](reward_w) if self.use_reward_scaling else reward_w
-                self.buffer.dones[w, t] = done_w
+                if self.multi_task:
+                    self.buffer[self.indices[w]].rewards[w // self.task_num, t] = self.reward_scaling[w](
+                        reward_w) if self.use_reward_scaling else reward_w
+                    self.buffer[self.indices[w]].dones[w // self.task_num, t] = done_w
+                else:
+                    self.buffer.rewards[w, t] = self.reward_scaling[w](reward_w) if self.use_reward_scaling else reward_w
+                    self.buffer.dones[w, t] = done_w
                 if info:
                     # Store the information of the completed episode (e.g. total reward, episode length)
                     episode_infos.append(info)
@@ -251,12 +321,20 @@ class Trainer:
                     obs_w = worker.child.recv()
                     # Reset recurrent cell states
                     if self.use_lstm and self.reset_hidden_state:
-                        if self.layer_type == 'lstm':
-                            rc = self.ppo_agent.init_recurrent_cell_states(1)
-                            self.recurrent_cell[0][:, w] = rc[0]
-                            self.recurrent_cell[1][:, w] = rc[1]
+                        rc = self.ppo_agent.init_recurrent_cell_states(1)
+                        if self.multi_task:
+                            index = torch.where(torch.cat(self.mask) == w)[0].item()
+                            if self.layer_type == 'lstm':
+                                self.recurrent_cell[0][:, index] = rc[0]
+                                self.recurrent_cell[1][:, index] = rc[1]
+                            else:
+                                self.recurrent_cell[:, w] = rc
                         else:
-                            self.recurrent_cell[:, w] = self.ppo_agent.init_recurrent_cell_states(1)
+                            if self.layer_type == 'lstm':
+                                self.recurrent_cell[0][:, w] = rc[0]
+                                self.recurrent_cell[1][:, w] = rc[1]
+                            else:
+                                self.recurrent_cell[:, w] = rc
                     # reset reward scaling
                     if self.use_reward_scaling:
                         self.reward_scaling[w].reset()
@@ -264,11 +342,67 @@ class Trainer:
                 self.obs[w] = obs_w
 
         # Calculate advantages
-        _, _, last_value_t, _ = self.ppo_agent.select_action(PPO._state_2_tensor(self.obs, self.device), self.recurrent_cell)
-        self.buffer.calc_advantages(last_value_t)
+        state_t = PPO._state_2_tensor(self.obs, self.device)
+        if self.multi_task:
+            state_t = [torch.index_select(s, 0, torch.cat(self.mask)) for s in state_t]
+            _, _, last_value_t, _ = self._multi_task_select_action(state_t, self.buffer_mask)
+        else:
+            _, _, last_value_t, _ = self.ppo_agent.select_action(state_t, self.recurrent_cell)
+        if self.multi_task:
+            for b, m in zip(self.buffer, self.buffer_mask):
+                b.calc_advantages(torch.index_select(last_value_t, 0, m))
+        else:
+            self.buffer.calc_advantages(last_value_t)
         return episode_infos
 
-    @staticmethod
+    def _multi_task_select_action(self, reshaped_state, buffer_mask):
+        action_t = None
+        action_logprob_t = None
+        value_t = None
+        recurrent_cell_t = None
+        for i, m in enumerate(buffer_mask):
+            task_state = [torch.index_select(s, 0, m) for s in reshaped_state]
+            if self.use_lstm:
+                if self.layer_type == 'gru':
+                    task_hidden_in = torch.index_select(self.recurrent_cell, 1, m)
+                elif self.layer_type == 'lstm':
+                    task_hidden_in = (torch.index_select(self.recurrent_cell[0], 1, m),
+                                      torch.index_select(self.recurrent_cell[1], 1, m))
+                else:
+                    raise NotImplementedError(self.layer_type)
+            action_t_, action_logprob_t_, value_t_, recurrent_cell_t_ = self.ppo_agent.select_action(
+                task_state, task_hidden_in, i)
+            action_t = torch.cat((action_t, action_t_), 0) if action_t is not None else action_t_
+            action_logprob_t = torch.cat((action_logprob_t, action_logprob_t_),
+                                         0) if action_logprob_t is not None else action_logprob_t_
+            value_t = torch.cat((value_t, value_t_), 0) if value_t is not None else value_t_
+            if self.use_lstm:
+                if self.layer_type == 'gru':
+                    recurrent_cell_t = torch.cat((recurrent_cell_t, recurrent_cell_t_),
+                                                 1) if recurrent_cell_t is not None else recurrent_cell_t_
+                elif self.layer_type == 'lstm':
+                    recurrent_cell_t = (torch.cat((recurrent_cell_t[0], recurrent_cell_t_[0]), 1),
+                                        torch.cat((recurrent_cell_t[1], recurrent_cell_t_[1]), 1)) if recurrent_cell_t_ is not None else recurrent_cell_t_
+                else:
+                    raise NotImplementedError(self.layer_type)
+        return action_t, action_logprob_t, value_t, recurrent_cell_t
+
+    def _state_classified_mask(self, state: list):
+        ''' According to the taskid in the state, classify the state and generate a classified mask.
+        Args:
+            state {list} -- state like: [tensor(feature), tensor(task_id)]
+
+        Returns:
+            {list} -- classified mask list like: [tensor(m1),tensor(m2),...]
+            {list} -- sort indices
+        '''
+        indices = np.argmax(state[-1].cpu().numpy(), axis=1)
+        unique_indices, inverse_indices = np.unique(indices, return_inverse=True)
+        mask = [torch.tensor(np.where(inverse_indices == val)[0]).to(self.device)
+                for val in unique_indices]
+        return mask, indices
+
+    @ staticmethod
     def _process_episode_info(episode_info: list) -> dict:
         '''Extracts the mean and std of completed episode statistics like length and total reward.
         Args:
@@ -335,6 +469,7 @@ class Trainer:
         self.update = self.conf_train.setdefault('update', 0)
         self.i_episode = self.conf_train.setdefault('i_episode', 0)
         self.resume = self.conf_train.setdefault('resume', False)
+        self.multi_task = self.conf_train.setdefault('multi_task', False)
 
         # PPO hyperparameters
         conf_ppo = {}
@@ -381,7 +516,7 @@ class Trainer:
 
         # save model
         print('--------------------------------------------------------------------------------------------')
-        checkpoint_file = f'{self.checkpoint_path}/{self.update}.pth'
+        checkpoint_file = os.path.join(self.checkpoint_path, f'{self.update}.pth')
         print('saving model at : ' + checkpoint_file)
         self.ppo_agent.save(checkpoint_file)
 
