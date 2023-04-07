@@ -39,6 +39,8 @@ class ActorCritic(nn.Module):
             # Simple Vector With Task ID shape like((17,), (4,))
             elif self.multi_task and len(obs_space[0].shape) == 1 and len(obs_space[1].shape) == 1:
                 self.task_num = len(self.config.get('task', []))
+                self.task_net = TaskNet(self.obs_space[1].shape[0], 16)
+                self.task_feature_size = self.task_net.out_size
                 in_features_size = self.obs_space[0].shape[0]
             else:
                 raise NotImplementedError(obs_space)
@@ -65,10 +67,11 @@ class ActorCritic(nn.Module):
         # actor: in shape(self.hidden_layer_size,)
         if self.multi_task:
             self.actor = MultiGaussianActor(config, self.hidden_layer_size, action_space, self.task_num)
-            self.critic = MultiCritic(self.hidden_layer_size, 1, config=config, task_num=self.task_num)
+            # self.critic = MultiCritic(self.hidden_layer_size, 1, config=config, task_num=self.task_num)
+            self.critic = Critic(self.hidden_layer_size + self.task_feature_size, 1, config)
         else:
             self.actor = GaussianActor(config, self.hidden_layer_size, action_space)
-            self.critic = Critic(self.hidden_layer_size, 1, config=config)
+            self.critic = Critic(self.hidden_layer_size, 1, config)
 
     def forward(self, obs, hidden_in: torch.Tensor = None, sequence_length: int = 1, module_index: int = -1):
         '''
@@ -85,6 +88,7 @@ class ActorCritic(nn.Module):
         # complex input or image or multi_task(obs and task id)
         if isinstance(self.obs_space, (gymnasium_spaces.Tuple, gym_spaces.Tuple)) or len(self.obs_space.shape) == 3:
             if self.multi_task:
+                task_feature = self.task_net(obs[-1])
                 feature = self.obs_net(obs[0]) if isinstance(obs[0], list) else obs[0]
             else:
                 feature = self.obs_net(obs)
@@ -104,7 +108,7 @@ class ActorCritic(nn.Module):
             # select actor
             dist = self.actor(feature, module_index)
             # critic
-            value = self.critic(feature, module_index)
+            value = self.critic(torch.cat((feature, task_feature), -1))
         else:
             # actor
             dist = self.actor(feature)

@@ -16,6 +16,8 @@ parser.add_argument(
 )
 
 # TODO
+# MA1C + task预测网络（actor根据t选择）
+# MA1C + Critic输出多个value
 # add ICM
 if __name__ == '__main__':
     args = parser.parse_args()
