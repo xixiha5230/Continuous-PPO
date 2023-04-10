@@ -31,6 +31,7 @@ class PPO:
 
         self.policy = ActorCritic(obs_space, action_space, self.config).to(self.device)
         self.policy.train()
+        self.criterion = torch.nn.CrossEntropyLoss()
         self.optimizer = torch.optim.AdamW(self.policy.parameters(), lr=self.conf_ppo['lr_schedule']['init'], eps=1e-5)
 
     def select_action(self, obs, hidden_in: torch.Tensor = None, module_index: int = -1):
@@ -47,7 +48,7 @@ class PPO:
             {hidden_out}: RNN hidden out feature tensor
         '''
         with torch.no_grad():
-            dist, value, hidden_out = self.policy.forward(obs, hidden_in, sequence_length=1, module_index=module_index)
+            dist, value, hidden_out, _ = self.policy.forward(obs, hidden_in, sequence_length=1, module_index=module_index)
             action = dist.sample().detach()
             action_logprob = dist.log_prob(action).detach()
             value = value.detach()
@@ -74,11 +75,10 @@ class PPO:
             {value}: value base on state and new action  and old action
             {dist_entropy}: action entropy
         '''
-        dist, value, _ = self.policy.forward(obs, hidden_in, sequence_length, module_index=module_index)
-
+        dist, value, _, task_pridict = self.policy.forward(obs, hidden_in, sequence_length, module_index=module_index)
         action_logprob = dist.log_prob(action)
         dist_entropy = dist.entropy()
-        return action_logprob, value, dist_entropy
+        return action_logprob, value, dist_entropy, task_pridict
 
     def train_mini_batch(self, learning_rate: float, clip_range: float, entropy_coeff: float, mini_batch: dict, sequence_length: int) -> list:
         '''Uses one mini batch to optimize the model.
@@ -96,9 +96,9 @@ class PPO:
                 clip_range, entropy_coeff, task_mini_batch, sequence_length, mudule_index) for mudule_index, task_mini_batch in enumerate(mini_batch)]
             multi_task_results = list(zip(*multi_task_results))
             # not sum(x)/len(x) !!!
-            policy_loss, vf_loss, entropy_bonus, loss = map(lambda x: sum(x), multi_task_results)
+            policy_loss, vf_loss, entropy_bonus, task_loss, loss = map(lambda x: sum(x), multi_task_results)
         else:
-            policy_loss, vf_loss, entropy_bonus, loss = self._train_mini_batch(
+            policy_loss, vf_loss, entropy_bonus, task_loss, loss = self._train_mini_batch(
                 clip_range, entropy_coeff, mini_batch, sequence_length, -1)
 
         # Compute gradients
@@ -113,7 +113,8 @@ class PPO:
             policy_loss.item(),
             vf_loss.item(),
             loss.item(),
-            entropy_bonus.item()
+            entropy_bonus.item(),
+            task_loss.item() if task_loss else None,
         )
 
     def _train_mini_batch(self, clip_range: float, entropy_coeff: float, mini_batch: dict, sequence_length: int, module_index: int = 0):
@@ -138,13 +139,14 @@ class PPO:
                 recurrent_cell = (mini_batch['hxs'].unsqueeze(0), mini_batch['cxs'].unsqueeze(0))
         else:
             recurrent_cell = None
-        action_logprobs, state_values, dist_entropy = self.evaluate(
+        action_logprobs, state_values, dist_entropy, task_pridcit = self.evaluate(
             mini_batch['obs'], mini_batch['actions'], recurrent_cell, sequence_length, module_index)
 
         # Remove paddings
         state_values = state_values[mini_batch['loss_mask']]
         action_logprobs = action_logprobs[mini_batch['loss_mask']]
         dist_entropy = dist_entropy[mini_batch['loss_mask']]
+        task_pridcit = task_pridcit[mini_batch['loss_mask']]
 
         normalized_advantage = mini_batch['normalized_advantages']
         # TODO why
@@ -167,9 +169,18 @@ class PPO:
         # Entropy Bonus
         entropy_bonus = dist_entropy.mean()
 
+        # task pridict loss
+        if self.multi_task:
+            # task_pridcit = torch.argmax(task_pridcit, dim=0
+            #                             ,keepdim=True)
+            y = torch.argmax(mini_batch['obs'][-1], dim=-1)
+            task_loss = self.criterion(task_pridcit, y)
+        else:
+            task_loss = None
+
         # Complete loss
-        total_loss = -(policy_loss - self.vf_loss_coeff * vf_loss + entropy_coeff * entropy_bonus)
-        return policy_loss, vf_loss, entropy_bonus, total_loss
+        total_loss = -(policy_loss - self.vf_loss_coeff * vf_loss + entropy_coeff * entropy_bonus - task_loss)
+        return policy_loss, vf_loss, entropy_bonus, task_loss, total_loss
 
     def save(self, checkpoint_path: str):
         ''' save old policy state dict

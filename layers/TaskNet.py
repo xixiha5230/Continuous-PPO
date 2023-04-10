@@ -31,6 +31,21 @@ class TaskNet(nn.Module):
         return x
 
 
+class TaskPredictNet(nn.Module):
+    def __init__(self, in_size, hidden_size, out_size) -> None:
+        super(TaskPredictNet, self).__init__()
+        self.net = nn.Sequential(
+            nn.Linear(in_size, hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, out_size),
+            nn.Softmax(dim=-1)
+        )
+
+    def forward(self, x):
+        out = self.net(x)
+        return out
+
+
 class VectorWithTask(nn.Module):
     def __init__(self, obs_space) -> None:
         super(VectorWithTask, self).__init__()

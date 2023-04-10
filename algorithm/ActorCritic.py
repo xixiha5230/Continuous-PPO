@@ -7,7 +7,7 @@ from layers.RNN import RNN
 from layers.Hidden import HiddenNet
 from layers.Critic import Critic, MultiCritic
 from layers.Actor import GaussianActor, MultiGaussianActor
-from layers.TaskNet import VectorWithTask, ActorSelector, TaskNet
+from layers.TaskNet import VectorWithTask, ActorSelector, TaskNet, TaskPredictNet
 from layers.StateNet import ObsNetUGV, ObsNetImage
 
 
@@ -41,6 +41,7 @@ class ActorCritic(nn.Module):
                 self.task_num = len(self.config.get('task', []))
                 self.task_net = TaskNet(self.obs_space[1].shape[0], 16)
                 self.task_feature_size = self.task_net.out_size
+                self.task_pridict_net = TaskPredictNet(self.hidden_layer_size+self.task_feature_size, 64, self.task_num)
                 in_features_size = self.obs_space[0].shape[0]
             else:
                 raise NotImplementedError(obs_space)
@@ -107,11 +108,13 @@ class ActorCritic(nn.Module):
         if self.multi_task:
             # select actor
             dist = self.actor(feature, module_index)
+            task_pridict = self.task_pridict_net(torch.cat((feature, task_feature), -1))
             # critic
             value = self.critic(torch.cat((feature, task_feature), -1))
         else:
             # actor
             dist = self.actor(feature)
+            task_pridict = None
             # critic
             value = self.critic(feature)
-        return dist, value, hidden_out if hidden_out != None else None
+        return dist, value, hidden_out, task_pridict

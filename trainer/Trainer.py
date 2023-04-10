@@ -162,17 +162,19 @@ class Trainer:
                 critic_loss_mean = []
                 dist_entropy_mean = []
                 total_loss_mean = []
+                task_loss_mean = []
                 if self.multi_task:
                     for mini_batch in self._multi_buff_mini_batch_generator(mini_batch_generator):
-                        actor_loss, critic_loss, loss, dist_entropy = self.ppo_agent.train_mini_batch(
+                        actor_loss, critic_loss, loss, dist_entropy, task_loss = self.ppo_agent.train_mini_batch(
                             learning_rate, clip_range, entropy_coeff, mini_batch, self.buffer[0].actual_sequence_length)
                         actor_loss_mean.append(actor_loss)
                         critic_loss_mean.append(critic_loss)
                         dist_entropy_mean.append(dist_entropy)
                         total_loss_mean.append(loss)
+                        task_loss_mean.append(task_loss)
                 else:
                     for mini_batch in mini_batch_generator:
-                        actor_loss, critic_loss, loss, dist_entropy = self.ppo_agent.train_mini_batch(
+                        actor_loss, critic_loss, loss, dist_entropy, _ = self.ppo_agent.train_mini_batch(
                             learning_rate, clip_range, entropy_coeff, mini_batch, self.buffer.actual_sequence_length)
                         actor_loss_mean.append(actor_loss)
                         critic_loss_mean.append(critic_loss)
@@ -196,6 +198,8 @@ class Trainer:
             self.writer.add_scalar('Loss/critic', np.mean(critic_loss_mean), self.update)
             self.writer.add_scalar('Loss/total', np.mean(total_loss_mean), self.update)
             self.writer.add_scalar('Loss/entropy', np.mean(dist_entropy_mean), self.update)
+            if len(task_loss_mean) != 0:
+                self.writer.add_scalar('Loss/task', np.mean(task_loss_mean), self.update)
             self.writer.add_scalar('Parameter/learning_rate', learning_rate, self.update)
             self.writer.add_scalar('Parameter/clip_range', clip_range, self.update)
             self.writer.add_scalar('Parameter/entropy_coeff', entropy_coeff, self.update)
