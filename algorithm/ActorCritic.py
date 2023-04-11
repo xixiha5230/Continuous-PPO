@@ -33,15 +33,23 @@ class ActorCritic(nn.Module):
         # complex input
         if isinstance(obs_space, gym_spaces.Tuple) or isinstance(obs_space, gymnasium_spaces.Tuple):
             # UGV
-            if(obs_space[0].shape == (84, 84, 3)):
+            if not self.multi_task and obs_space[0].shape == (84, 84, 3) and obs_space[1].shape == (400,):
                 self.obs_net = ObsNetUGV(obs_space)
                 in_features_size = self.obs_net.out_size
+            # UGV with Task ID
+            elif self.multi_task and obs_space[0].shape == (84, 84, 3) and obs_space[1].shape == (400,):
+                self.obs_net = ObsNetUGV(obs_space)
+                in_features_size = self.obs_net.out_size
+                self.task_num = len(self.config.get('task', []))
+                self.task_net = TaskNet(self.obs_space[-1].shape[0], 16)
+                self.task_feature_size = self.task_net.out_size
+                self.task_pridict_net = TaskPredictNet(self.hidden_layer_size, 64, self.task_num)
             # Simple Vector With Task ID shape like((17,), (4,))
             elif self.multi_task and len(obs_space[0].shape) == 1 and len(obs_space[1].shape) == 1:
                 self.task_num = len(self.config.get('task', []))
                 self.task_net = TaskNet(self.obs_space[1].shape[0], 16)
                 self.task_feature_size = self.task_net.out_size
-                self.task_pridict_net = TaskPredictNet(self.hidden_layer_size+self.task_feature_size, 64, self.task_num)
+                self.task_pridict_net = TaskPredictNet(self.hidden_layer_size, 64, self.task_num)
                 in_features_size = self.obs_space[0].shape[0]
             else:
                 raise NotImplementedError(obs_space)
@@ -90,7 +98,7 @@ class ActorCritic(nn.Module):
         if isinstance(self.obs_space, (gymnasium_spaces.Tuple, gym_spaces.Tuple)) or len(self.obs_space.shape) == 3:
             if self.multi_task:
                 task_feature = self.task_net(obs[-1])
-                feature = self.obs_net(obs[0]) if isinstance(obs[0], list) else obs[0]
+                feature = obs[0] if len(obs[0].shape) == 2 else self.obs_net(obs[:-1])
             else:
                 feature = self.obs_net(obs)
         else:
@@ -108,7 +116,7 @@ class ActorCritic(nn.Module):
         if self.multi_task:
             # select actor
             dist = self.actor(feature, module_index)
-            task_pridict = self.task_pridict_net(torch.cat((feature, task_feature), -1))
+            task_pridict = self.task_pridict_net(feature)
             # critic
             value = self.critic(torch.cat((feature, task_feature), -1))
         else:
