@@ -173,7 +173,7 @@ class PPO:
         if self.multi_task:
             # task_pridcit = torch.argmax(task_pridcit, dim=0
             #                             ,keepdim=True)
-            y = torch.argmax(mini_batch['obs'][-1], dim=-1)
+            y = torch.argmax(mini_batch['obs'][-1][mini_batch['loss_mask']], dim=-1)
             task_loss = self.criterion(task_pridcit, y)
         else:
             task_loss = None
