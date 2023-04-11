@@ -85,7 +85,7 @@ class AtariImage(nn.Module):
             nn.ReLU(),
         )
         self.conv.apply(weights_init_)
-        self.out_size = conv_3_hw[0] * conv_3_hw[1] * 64
+        self.output_size = conv_3_hw[0] * conv_3_hw[1] * 64
 
     def forward(self, x: torch.Tensor):
         '''
@@ -97,19 +97,19 @@ class AtariImage(nn.Module):
             x = x.unsqueeze(0)
         x = x.permute(0, 3, 1, 2)
         x = self.conv(x)
-        x = x.reshape(x.shape[0], self.out_size)
+        x = x.reshape(x.shape[0], self.output_size)
         return x
 
 
 class Conv1d(nn.Module):
     ''' dense sensor data convolution module '''
 
-    def __init__(self, length: int, channel: int, out_size: int):
+    def __init__(self, length: int, channel: int, output_size: int):
         '''
         Args:
             length {int} -- data length
             channel {int} -- data chanel
-            out_size {int} -- output dimension
+            output_size {int} -- output dimension
         '''
         super(Conv1d, self).__init__()
 
@@ -125,11 +125,11 @@ class Conv1d(nn.Module):
 
         self.fc_input = conv_2_l * 32
         self.fc = nn.Sequential(
-            nn.Linear(self.fc_input, out_size),
+            nn.Linear(self.fc_input, output_size),
             nn.ReLU()
         )
         self.fc.apply(weights_init_)
-        self.out_size = out_size
+        self.output_size = output_size
 
     def forward(self, x: torch.Tensor):
         '''
@@ -147,20 +147,20 @@ class Conv1d(nn.Module):
 class ObsNetImage(nn.Module):
     ''' single image process module '''
 
-    def __init__(self, obs_space: spaces.Tuple, out_size: int = 128) -> None:
+    def __init__(self, obs_shape: spaces.Tuple, output_size: int = 128) -> None:
         '''
         Args:
-            obs_space {spaces.Tuple} -- shape is (84, 84, 3)
+            obs_shape {tuple} -- like (84, 84, 3)
         '''
-        assert obs_space.shape == (84, 84, 3) or obs_space.shape == (96, 96, 3)
+        assert obs_shape == (84, 84, 3) or obs_shape == (96, 96, 3)
         super(ObsNetImage, self).__init__()
-        self.conv2d = AtariImage(obs_space.shape)
+        self.conv2d = AtariImage(obs_shape)
         self.fc = nn.Sequential(
-            nn.Linear(self.conv2d.out_size, out_size),
+            nn.Linear(self.conv2d.output_size, output_size),
             nn.ReLU()
         )
         self.fc.apply(weights_init_)
-        self.out_size = out_size
+        self.output_size = output_size
 
     def forward(self, obs: torch.Tensor):
         '''
@@ -186,8 +186,8 @@ class ObsNetUGV(nn.Module):
         super(ObsNetUGV, self).__init__()
 
         self.conv1d = Conv1d(obs_space[1].shape[0], 1, 64)
-        self.conv2d = ObsNetImage(obs_space[0], 64)
-        self.out_size = self.conv1d.out_size + self.conv2d.out_size
+        self.conv2d = ObsNetImage(obs_space[0].shape, 64)
+        self.output_size = self.conv1d.output_size + self.conv2d.output_size
 
     def forward(self, obs: list):
         '''

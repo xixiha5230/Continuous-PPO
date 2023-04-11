@@ -6,19 +6,19 @@ import torch.nn as nn
 class Critic(nn.Module):
     ''' Critic Module '''
 
-    def __init__(self, in_size: int, out_size: int = 1, config: dict = None) -> None:
+    def __init__(self, config: dict, input_size: int, output_size: int = 1) -> None:
         '''
         Args:
-            in_size {int} -- input feature size
-            out_size {int} -- num of value
             config {dict} -- config dictionary
+            input_size {int} -- input feature size
+            output_size {int} -- num of value
         '''
         super(Critic, self).__init__()
         self.config = config
         self.critic = nn.Sequential(
-            nn.Linear(in_size, in_size),
+            nn.Linear(input_size, input_size),
             nn.ReLU(),
-            nn.Linear(in_size, out_size)
+            nn.Linear(input_size, output_size)
         )
         nn.init.orthogonal_(self.critic[0].weight, np.sqrt(2))
         nn.init.orthogonal_(self.critic[2].weight, 1)
@@ -36,21 +36,21 @@ class Critic(nn.Module):
 class MultiCritic(nn.Module):
     ''' Multiple Critic Module '''
 
-    def __init__(self, in_size: int, out_size: int = 1, config: dict = None, task_num: int = 1) -> None:
+    def __init__(self, config: dict, input_size: int, output_size: int = 1,  task_num: int = 1) -> None:
         '''
         Args:
-            in_size {int} -- input feature size
-            out_size {int} -- num of value
             config {dict} -- config dictionary
+            input_size {int} -- input feature size
+            output_size {int} -- num of value
             task_num {int} -- num of task
         '''
         super(MultiCritic, self).__init__()
         self.config = config
         self.m_critic = nn.ModuleDict(
             [[str(i), nn.Sequential(
-                nn.Linear(in_size, in_size),
+                nn.Linear(input_size, input_size),
                 nn.ReLU(),
-                nn.Linear(in_size, out_size)
+                nn.Linear(input_size, output_size)
             )] for i in range(task_num)]
         )
         for _, m in self.m_critic.items():

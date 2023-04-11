@@ -35,20 +35,20 @@ class ActorCritic(nn.Module):
             # UGV
             if not self.multi_task and obs_space[0].shape == (84, 84, 3) and obs_space[1].shape == (400,):
                 self.obs_net = ObsNetUGV(obs_space)
-                in_features_size = self.obs_net.out_size
+                in_features_size = self.obs_net.output_size
             # UGV with Task ID
             elif self.multi_task and obs_space[0].shape == (84, 84, 3) and obs_space[1].shape == (400,):
                 self.obs_net = ObsNetUGV(obs_space)
-                in_features_size = self.obs_net.out_size
+                in_features_size = self.obs_net.output_size
                 self.task_num = len(self.config.get('task', []))
                 self.task_net = TaskNet(self.obs_space[-1].shape[0], 16)
-                self.task_feature_size = self.task_net.out_size
+                self.task_feature_size = self.task_net.output_size
                 self.task_predict_net = TaskPredictNet(self.hidden_layer_size, 64, self.task_num)
             # Simple Vector With Task ID shape like((17,), (4,))
             elif self.multi_task and len(obs_space[0].shape) == 1 and len(obs_space[1].shape) == 1:
                 self.task_num = len(self.config.get('task', []))
                 self.task_net = TaskNet(self.obs_space[1].shape[0], 16)
-                self.task_feature_size = self.task_net.out_size
+                self.task_feature_size = self.task_net.output_size
                 self.task_predict_net = TaskPredictNet(self.hidden_layer_size, 64, self.task_num)
                 in_features_size = self.obs_space[0].shape[0]
             else:
@@ -59,14 +59,14 @@ class ActorCritic(nn.Module):
         # single image
         elif len(obs_space.shape) == 3:
             self.obs_net = ObsNetImage(obs_space)
-            in_features_size = self.obs_net.out_size
+            in_features_size = self.obs_net.output_size
         else:
             raise NotImplementedError(obs_space.shape)
 
         # rnn
         if self.use_lstm:
-            self.rnn_net = RNN(in_features_size, config)
-            after_rnn_size = self.rnn_net.out_size
+            self.rnn_net = RNN(config, in_features_size)
+            after_rnn_size = self.rnn_net.output_size
         else:
             after_rnn_size = in_features_size
 
@@ -77,10 +77,10 @@ class ActorCritic(nn.Module):
         if self.multi_task:
             self.actor = MultiGaussianActor(config, self.hidden_layer_size, action_space, self.task_num)
             # self.critic = MultiCritic(self.hidden_layer_size, 1, config=config, task_num=self.task_num)
-            self.critic = Critic(self.hidden_layer_size + self.task_feature_size, 1, config)
+            self.critic = Critic(config, self.hidden_layer_size + self.task_feature_size, 1)
         else:
             self.actor = GaussianActor(config, self.hidden_layer_size, action_space)
-            self.critic = Critic(self.hidden_layer_size, 1, config)
+            self.critic = Critic(config, self.hidden_layer_size, 1)
 
     def forward(self, obs, hidden_in: torch.Tensor = None, sequence_length: int = 1, module_index: int = -1):
         '''

@@ -6,19 +6,19 @@ from layers.StateNet import weights_init_
 class HiddenNet(nn.Module):
     ''' Hidden Module '''
 
-    def __init__(self, in_size: int = 256, out_size: int = 256) -> None:
+    def __init__(self, input_size: int = 256, output_size: int = 256) -> None:
         '''
         Args:
-            in_size {int} -- input feature dim
-            out_size {int} -- output feature dim
+            input_size {int} -- input feature dim
+            output_size {int} -- output feature dim
         '''
         super(HiddenNet, self).__init__()
         self.lin_hidden = nn.Sequential(
-            nn.Linear(in_size, out_size),
+            nn.Linear(input_size, output_size),
             nn.ReLU()
         )
         self.lin_hidden.apply(weights_init_)
-        self.out_size = out_size
+        self.output_size = output_size
 
     def forward(self, feature: torch.Tensor):
         '''

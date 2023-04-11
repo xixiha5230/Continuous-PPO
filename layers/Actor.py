@@ -8,7 +8,7 @@ from torch.distributions import Categorical, Normal
 class Actor(nn.Module):
     ''' Actor base Module '''
 
-    def __init__(self, action_space: Box, config: dict) -> None:
+    def __init__(self, config: dict, action_space: Box) -> None:
         '''
         Args:
             action_space {Box} -- action space
@@ -38,34 +38,34 @@ class Actor(nn.Module):
 class GaussianActor(Actor):
     ''' Gaussian Actor Module '''
 
-    def __init__(self, config: dict, in_size: int, action_space: tuple) -> None:
+    def __init__(self, config: dict, input_size: int, action_space: tuple) -> None:
         '''
         Args:
             config {dict} -- config dictionary
-            in_size {int} -- input feature size
+            input_size {int} -- input feature size
             action_space {tuple} -- action space
         '''
-        super(GaussianActor, self).__init__(action_space, config)
+        super(GaussianActor, self).__init__(config, action_space)
 
         if self.action_type == 'continuous':
             self.mu = nn.Sequential(
-                nn.Linear(in_size, in_size),
+                nn.Linear(input_size, input_size),
                 nn.ReLU(),
-                nn.Linear(in_size, self.action_dim),
+                nn.Linear(input_size, self.action_dim),
                 nn.Tanh()
             )
             nn.init.orthogonal_(self.mu[0].weight, np.sqrt(2))
             nn.init.orthogonal_(self.mu[2].weight, np.sqrt(0.01))
             self.sigma = nn.Sequential(
-                nn.Linear(in_size, self.action_dim),
+                nn.Linear(input_size, self.action_dim),
                 nn.Softmax(dim=-1)
             )
             nn.init.orthogonal_(self.sigma[0].weight, np.sqrt(0.01))
         elif self.action_type == 'discrete':
             self.mu = nn.Sequential(
-                nn.Linear(in_size, in_size),
+                nn.Linear(input_size, input_size),
                 nn.ReLU(),
-                nn.Linear(in_size, self.action_dim),
+                nn.Linear(input_size, self.action_dim),
             )
             nn.init.orthogonal_(self.mu[0].weight, np.sqrt(2))
             nn.init.orthogonal_(self.mu[2].weight, np.sqrt(0.01))
@@ -92,22 +92,22 @@ class GaussianActor(Actor):
 class MultiGaussianActor(Actor):
     ''' Gaussian Multiple Actor Module '''
 
-    def __init__(self, config: dict, in_size: int, action_space: tuple, task_num: int) -> None:
+    def __init__(self, config: dict, input_size: int, action_space: tuple, task_num: int) -> None:
         '''
         Args:
             config {dict} -- config dictionary
-            in_size {int} -- input feature size
+            input_size {int} -- input feature size
             action_space {tuple} -- action space
             task_num {int} -- num of task
         '''
-        super(MultiGaussianActor, self).__init__(action_space, config)
+        super(MultiGaussianActor, self).__init__(config, action_space)
 
         if self.action_type == 'continuous':
             self.m_mu = nn.ModuleDict(
                 [[str(i), nn.Sequential(
-                    nn.Linear(in_size, in_size),
+                    nn.Linear(input_size, input_size),
                     nn.ReLU(),
-                    nn.Linear(in_size, self.action_dim),
+                    nn.Linear(input_size, self.action_dim),
                     nn.Tanh()
                 )]
                     for i in range(task_num)]
@@ -117,7 +117,7 @@ class MultiGaussianActor(Actor):
                 nn.init.orthogonal_(m[2].weight, np.sqrt(0.01))
             self.m_sigma = nn.ModuleDict(
                 [[str(i), nn.Sequential(
-                    nn.Linear(in_size, self.action_dim),
+                    nn.Linear(input_size, self.action_dim),
                     nn.Softmax(dim=-1)
                 )] for i in range(task_num)]
             )
@@ -126,9 +126,9 @@ class MultiGaussianActor(Actor):
         elif self.action_type == 'discrete':
             self.m_mu = nn.ModuleDict(
                 [[str(i), nn.Sequential(
-                    nn.Linear(in_size, in_size),
+                    nn.Linear(input_size, input_size),
                     nn.ReLU(),
-                    nn.Linear(in_size, self.action_dim),
+                    nn.Linear(input_size, self.action_dim),
                 )] for i in range(task_num)]
             )
             for _, m in self.m_mu.items():
