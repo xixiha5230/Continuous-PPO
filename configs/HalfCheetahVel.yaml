@@ -27,7 +27,7 @@ train:
   K_epochs: 4
   device: cuda
   env_name: HalfCheetahVel
-  exp_name: MA1C_2_task_add_task_pridict
+  exp_name: MA1C_2_task_add_task_predict
   action_type: continuous
   hidden_layer_size: 256
   max_updates: 2000

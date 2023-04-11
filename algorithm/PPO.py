@@ -75,10 +75,10 @@ class PPO:
             {value}: value base on state and new action  and old action
             {dist_entropy}: action entropy
         '''
-        dist, value, _, task_pridict = self.policy.forward(obs, hidden_in, sequence_length, module_index=module_index)
+        dist, value, _, task_predict = self.policy.forward(obs, hidden_in, sequence_length, module_index=module_index)
         action_logprob = dist.log_prob(action)
         dist_entropy = dist.entropy()
-        return action_logprob, value, dist_entropy, task_pridict
+        return action_logprob, value, dist_entropy, task_predict
 
     def train_mini_batch(self, learning_rate: float, clip_range: float, entropy_coeff: float, mini_batch: dict, sequence_length: int) -> list:
         '''Uses one mini batch to optimize the model.
@@ -169,7 +169,7 @@ class PPO:
         # Entropy Bonus
         entropy_bonus = dist_entropy.mean()
 
-        # task pridict loss
+        # task predict loss
         if self.multi_task:
             # task_pridcit = torch.argmax(task_pridcit, dim=0
             #                             ,keepdim=True)
