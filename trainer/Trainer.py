@@ -139,7 +139,7 @@ class Trainer:
             # Sample training data
             try:
                 sampled_episode_info = self._sample_training_data()
-            except EOFError as e:
+            except Exception as e:
                 if self.stop_signal:
                     break
                 else:
@@ -257,10 +257,12 @@ class Trainer:
                 state_t = PPO._state_2_tensor(self.obs, self.device)
                 if isinstance(state_t, list):
                     if self.multi_task:
-                        # gnenrate select mask TODO 一次初始化就行
-                        self.mask, self.indices = self._state_classified_mask(state_t)
-                        self.buffer_mask = torch.arange(0, self.num_workers).reshape(
-                            self.task_num, self.num_workers // self.task_num).to(self.device)
+                        # gnenrate select mask
+                        if not hasattr(self, 'mask') or not hasattr(self, 'indices') or not hasattr(self, 'buffer_mask') or not hasattr(self, 'original_order'):
+                            self.mask, self.indices = self._state_classified_mask(state_t)
+                            self.buffer_mask = torch.arange(0, self.num_workers).reshape(
+                                self.task_num, self.num_workers // self.task_num).to(self.device)
+                            self.original_order = torch.argsort(torch.cat(self.mask))
                         reshaped_state_t = [torch.index_select(s, 0, torch.cat(self.mask)) for s in state_t]
                         for i, m in enumerate(self.buffer_mask):
                             self.buffer[i].obs[t] = [torch.index_select(v, 0, m) for v in reshaped_state_t]
@@ -304,11 +306,10 @@ class Trainer:
                     self.buffer.actions[:, t] = action_t
                     self.buffer.log_probs[:, t] = action_logprob_t
                     self.buffer.values[:, t] = value_t
-            # Send actions to the environments
+            # restore action order
             if self.multi_task:
-                # reshape to worker shape TODO 计算一次就行
-                original_order = torch.argsort(torch.cat(self.mask))
-                restored_action_t = torch.index_select(action_t, 0, original_order)
+                restored_action_t = torch.index_select(action_t, 0, self.original_order)
+            # Send actions to the environments
             for w, worker in enumerate(self.workers):
                 worker.child.send(('step', restored_action_t[w].cpu().numpy()
                                   if self.multi_task else state_t[w].cpu().numpy()))
