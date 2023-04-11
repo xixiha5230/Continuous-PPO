@@ -1,0 +1,45 @@
+ppo:
+  entropy_coeff_schedule:
+    init: 0.001
+    final: 0.001
+    pow: 1.0
+    max_decay_steps: 0
+  clip_range_schedule:
+    init: 0.2
+    final: 0.2
+    pow: 1.0
+    max_decay_steps: 0
+  lr_schedule:
+    init: 3.0e-4
+    final: 3.0e-4
+    pow: 1.0
+    max_decay_steps: 0
+  gamma: 0.99
+  lamda: 0.95
+  vf_loss_coeff: 0.5
+recurrence:
+  hidden_state_size: 512
+  layer_type: gru
+  reset_hidden_state: true
+  sequence_length: 16
+  use_lstm: true
+train:
+  K_epochs: 4
+  device: cuda
+  env_name: UnityMultitask
+  exp_name: gru_seq_16
+  action_type: continuous
+  hidden_layer_size: 512
+  max_updates: 1000
+  num_mini_batch: 8
+  random_seed: 0
+  save_model_freq: 10
+  multi_task: true
+worker:
+  num_workers: 6
+  worker_steps: 512
+task:
+  [
+    { "one_hot": [1, 0, 0, 0], "file_name": "UnityEnvs/UnityMultitask/Task0" },
+    { "one_hot": [0, 1, 0, 0], "file_name": "UnityEnvs/UnityMultitask/Task1" },
+  ]
