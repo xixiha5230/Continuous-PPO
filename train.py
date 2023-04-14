@@ -5,7 +5,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     '--config_file',
     type=str,
-    default='configs/HalfCheetahVel.yaml',
+    default='configs/CarSearch.yaml',
     help='The config file',
 )
 parser.add_argument(
@@ -16,9 +16,7 @@ parser.add_argument(
 )
 
 # TODO
-# MA1C + task预测网络（actor根据t选择）
-# MA1C + Critic输出多个value
-# add ICM
+# 优化整理代码
 if __name__ == '__main__':
     args = parser.parse_args()
     for _ in range(10):

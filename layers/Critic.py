@@ -15,22 +15,34 @@ class Critic(nn.Module):
         '''
         super(Critic, self).__init__()
         self.config = config
-        self.critic = nn.Sequential(
+        conf_train = config['train']
+        self.use_rnd = conf_train['use_rnd']
+
+        self.critic_hidden = nn.Sequential(
             nn.Linear(input_size, input_size),
             nn.ReLU(),
-            nn.Linear(input_size, output_size)
         )
-        nn.init.orthogonal_(self.critic[0].weight, np.sqrt(2))
-        nn.init.orthogonal_(self.critic[2].weight, 1)
+        nn.init.orthogonal_(self.critic_hidden[0].weight, np.sqrt(2))
+        self.critic = nn.Linear(input_size, output_size)
+        nn.init.orthogonal_(self.critic.weight, 1)
+        if self.use_rnd:
+            self.rnd_critic = nn.Linear(input_size, output_size)
+            nn.init.orthogonal_(self.rnd_critic.weight, 1)
 
     def forward(self, feature: torch.Tensor):
         '''
         Args:
             x {torch.Tensor} --- hight level feature
         '''
-        value = self.critic(feature)
+        x = self.critic_hidden(feature)
+        value = self.critic(x)
         value = value.squeeze(-1)
-        return value
+        if self.use_rnd:
+            rnd_value = self.rnd_critic(x)
+            rnd_value = rnd_value.squeeze(-1)
+        else:
+            rnd_value = None
+        return value, rnd_value
 
 
 class MultiCritic(nn.Module):

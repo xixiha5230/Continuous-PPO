@@ -27,7 +27,7 @@ train:
   K_epochs: 4
   device: cuda
   env_name: UnityMultitask
-  exp_name: gru_seq_16
+  exp_name: rnd_evo
   action_type: continuous
   hidden_layer_size: 512
   max_updates: 1000
@@ -35,6 +35,7 @@ train:
   random_seed: 0
   save_model_freq: 10
   multi_task: true
+  use_rnd: true
 worker:
   num_workers: 6
   worker_steps: 512

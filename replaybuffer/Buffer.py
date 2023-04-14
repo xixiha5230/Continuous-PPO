@@ -19,6 +19,7 @@ class Buffer():
         self.n_mini_batches = conf_train['num_mini_batch']
         self.action_type = conf_train['action_type']
         self.multi_task = conf_train['multi_task']
+        self.use_rnd = conf_train['use_rnd']
 
         conf_recurrence = config['recurrence']
         hidden_state_size = conf_recurrence['hidden_state_size']
@@ -41,11 +42,9 @@ class Buffer():
         self.mini_batch_size = self.batch_size // self.n_mini_batches
         self.actual_sequence_length = 0
         # Reward
-        self.rewards = np.zeros(
-            (self.n_workers, self.worker_steps), dtype=np.float32)
+        self.rewards = np.zeros((self.n_workers, self.worker_steps), dtype=np.float32)
         # Done
-        self.dones = np.zeros(
-            (self.n_workers, self.worker_steps), dtype=np.bool)
+        self.dones = np.zeros((self.n_workers, self.worker_steps), dtype=np.bool)
         # Action & Log_probs
         if self.action_type == 'continuous':
             self.actions = torch.zeros((self.n_workers, self.worker_steps) + (action_space.shape[0], )).to(self.device)
@@ -69,6 +68,15 @@ class Buffer():
         self.values = torch.zeros((self.n_workers, self.worker_steps)).to(self.device)
         # Advantage
         self.advantages = torch.zeros((self.n_workers, self.worker_steps)).to(self.device)
+        # RDN rnd_next_obs && rnd_values && rnd_rewards && rnd_advantages
+        if self.use_rnd:
+            # only rnd the obs on first dim!!!
+            self.rnd_next_obs = torch.zeros((self.n_workers, self.worker_steps) + observation_space[0].shape).to(self.device)
+            self.rnd_values = torch.zeros((self.n_workers, self.worker_steps)).to(self.device)
+            self.rnd_rewards = np.zeros((self.n_workers, self.worker_steps), dtype=np.float32)
+            self.rnd_advantages = torch.zeros((self.n_workers, self.worker_steps)).to(self.device)
+            # TODO SAVE? reuse? Multitask done
+            self.rnd_reward_rms = RunningMeanStd(shape=(1,))
 
     def prepare_batch_dict(self) -> None:
         '''Flattens the training samples and stores them inside a dictionary. Due to using a recurrent policy,
@@ -133,6 +141,10 @@ class Buffer():
         samples['values'] = self.values
         samples['log_probs'] = self.log_probs
         samples['advantages'] = self.advantages
+        if self.use_rnd:
+            samples['rnd_values'] = self.rnd_values
+            samples['rnd_advantages'] = self.rnd_advantages
+            samples['rnd_next_obs'] = self.rnd_next_obs
 
         # Flatten all samples and convert them to a tensor
         self.samples_flat = {}
@@ -229,6 +241,9 @@ class Buffer():
         # optimization 1: normalized advantages in batch data
         self.samples_flat['normalized_advantages'] = (self.samples_flat['advantages'] - self.samples_flat['advantages'].mean()
                                                       ) / (self.samples_flat['advantages'].std() + 1e-8)
+        if self.use_rnd:
+            self.samples_flat['normalized_rnd_advantages'] = (self.samples_flat['rnd_advantages'] - self.samples_flat['rnd_advantages'].mean()
+                                                              ) / (self.samples_flat['rnd_advantages'].std() + 1e-8)
         # Determine the number of sequences per mini batch
         num_sequences_per_batch = self.num_sequences // self.n_mini_batches
         # Arrange a list that determines the sequence count for each mini batch
@@ -253,7 +268,7 @@ class Buffer():
                 if key == 'hxs' or key == 'cxs':
                     # Select recurrent cell states of sequence starts
                     mini_batch[key] = value[sequence_indices[start:end]].to(self.device)
-                elif key == 'log_probs' or 'advantages' in key or key == 'values':
+                elif key == 'log_probs' or 'advantages' in key or key == 'values' or 'rnd' in key:
                     # Select unpadded data
                     mini_batch[key] = value[mini_batch_unpadded_indices].to(self.device)
                 else:
@@ -271,21 +286,78 @@ class Buffer():
         if self.device == 'cuda':
             torch.cuda.empty_cache()
 
-    def calc_advantages(self, last_value: torch.tensor) -> None:
+    def calc_advantages(self, last_value: torch.Tensor, rnd_last_value: torch.Tensor = None) -> None:
         '''Generalized advantage estimation (GAE)
 
         Arguments:
             last_value {torch.tensor} -- Value of the last agent's state
         '''
         with torch.no_grad():
-            last_advantage = 0
+            self._calc_advantages(self.dones, self.rewards, self.values, last_value, self.advantages)
+            if self.use_rnd:
+                self._calc_advantages(np.zeros_like(self.dones), self.rnd_rewards,
+                                      self.rnd_values, rnd_last_value, self.rnd_advantages)
+
+    def _calc_advantages(self, dones: np.ndarray, rewards: np.ndarray, values: torch.Tensor, last_value: torch.Tensor, advantages: torch.Tensor):
+        with torch.no_grad():
+            gae = 0
             # mask values on terminal states
-            mask = torch.tensor(self.dones).logical_not().to(self.device)
-            rewards = torch.tensor(self.rewards).to(self.device)
+            mask = torch.tensor(dones).logical_not().to(self.device)
+            rewards = torch.tensor(rewards).to(self.device)
             for t in reversed(range(self.worker_steps)):
-                last_value = last_value * mask[:, t]
-                last_advantage = last_advantage * mask[:, t]
-                delta = rewards[:, t] + self.gamma * last_value - self.values[:, t]
-                last_advantage = delta + self.gamma * self.lamda * last_advantage
-                self.advantages[:, t] = last_advantage
-                last_value = self.values[:, t]
+                # delta = r + gamma * V' * (1-done) - V
+                delta = rewards[:, t] + self.gamma * last_value * mask[:, t] - values[:, t]
+                # gae = delta + gamma * lamda * gae' * (1-done)
+                gae = delta + self.gamma * self.lamda * gae * mask[:, t]
+                advantages[:, t] = gae
+                last_value = values[:, t]
+
+    def normalize_rnd_rewards(self):
+        # OpenAI's usage of Forward filter is definitely wrong;
+        # Because: https://github.com/openai/random-network-distillation/issues/16#issuecomment-488387659
+        gamma = self.gamma  # Make code faster.
+        intrinsic_returns = [[] for _ in range(self.n_workers)]
+        for worker in range(self.n_workers):
+            rewems = 0
+            for step in reversed(range(self.worker_steps)):
+                rewems = rewems * gamma + self.rnd_rewards[worker][step]
+                intrinsic_returns[worker].insert(0, rewems)
+        self.rnd_reward_rms.update(np.ravel(intrinsic_returns).reshape(-1, 1))
+
+        self.rnd_rewards = self.rnd_rewards / (self.rnd_reward_rms.var ** 0.5)
+
+
+# TODO 暂存
+
+
+class RunningMeanStd:
+    # https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Parallel_algorithm
+    # -> It's indeed batch normalization. :D
+    def __init__(self, epsilon=1e-4, shape=()):
+        self.mean = np.zeros(shape, 'float64')
+        self.var = np.ones(shape, 'float64')
+        self.count = epsilon
+
+    def update(self, x):
+        batch_mean = np.mean(x, axis=0)
+        batch_var = np.var(x, axis=0)
+        batch_count = x.shape[0]
+        self.update_from_moments(batch_mean, batch_var, batch_count)
+
+    def update_from_moments(self, batch_mean, batch_var, batch_count):
+        self.mean, self.var, self.count = RunningMeanStd.update_mean_var_count_from_moments(
+            self.mean, self.var, self.count, batch_mean, batch_var, batch_count)
+
+    @staticmethod
+    def update_mean_var_count_from_moments(mean, var, count, batch_mean, batch_var, batch_count):
+        delta = batch_mean - mean
+        tot_count = count + batch_count
+
+        new_mean = mean + delta * batch_count / tot_count
+        m_a = var * count
+        m_b = batch_var * batch_count
+        M2 = m_a + m_b + np.square(delta) * count * batch_count / tot_count
+        new_var = M2 / tot_count
+        new_count = tot_count
+
+        return new_mean, new_var, new_count

@@ -1,6 +1,6 @@
 # PPO-PyTorch
 
-## 参考
+## 参考 感谢！
 
 - [conv1d、conv2d网络]([GitHub - BlueFisher/Advanced-Soft-Actor-Critic: Soft Actor-Critic with advanced features](https://github.com/BlueFisher/Advanced-Soft-Actor-Critic))
 
@@ -12,14 +12,17 @@
 
 - [ppo优化技巧]([GitHub - Lizhi-sjtu/DRL-code-pytorch: Concise pytorch implements of DRL algorithms, including REINFORCE, A2C, DQN, PPO(discrete and continuous), DDPG, TD3, SAC.](https://github.com/Lizhi-sjtu/DRL-code-pytorch)) 
 
+- [RND 随机网络蒸馏](https://github.com/alirezakazemipour/PPO-RND)
+  
 ## 功能
 
 1. 支持离散和连续动作
 2. 多进程采集数据
 3. 支持lstm
 4. 支持复杂输入(图像 与 向量)
+5. 支持rnd随机网络蒸馏(探索)
 
-## 版本
+## 环境
 
 python 3.8
 

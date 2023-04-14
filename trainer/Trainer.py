@@ -138,7 +138,7 @@ class Trainer:
 
             # Sample training data
             try:
-                sampled_episode_info = self._sample_training_data()
+                sampled_episode_info, mean_rnd_reward = self._sample_training_data()
             except Exception as e:
                 if self.stop_signal:
                     break
@@ -155,35 +155,30 @@ class Trainer:
             # train K epochs
             for _ in range(self.K_epochs):
                 if self.multi_task:
-                    mini_batch_generator = [b.recurrent_mini_batch_generator() for b in self.buffer]
+                    mini_batch_generator = self._multi_buff_mini_batch_generator(
+                        [b.recurrent_mini_batch_generator() for b in self.buffer])
+                    actual_sequence_length = self.buffer[0].actual_sequence_length
                 else:
                     mini_batch_generator = self.buffer.recurrent_mini_batch_generator()
+                    actual_sequence_length = self.buffer.actual_sequence_length
+
                 actor_loss_mean = []
                 critic_loss_mean = []
                 dist_entropy_mean = []
                 total_loss_mean = []
                 task_loss_mean = []
-                if self.multi_task:
-                    for mini_batch in self._multi_buff_mini_batch_generator(mini_batch_generator):
-                        actor_loss, critic_loss, loss, dist_entropy, task_loss = self.ppo_agent.train_mini_batch(
-                            learning_rate, clip_range, entropy_coeff, mini_batch, self.buffer[0].actual_sequence_length)
-                        actor_loss_mean.append(actor_loss)
-                        critic_loss_mean.append(critic_loss)
-                        dist_entropy_mean.append(dist_entropy)
-                        total_loss_mean.append(loss)
+                rnd_loss_mean = []
+                for mini_batch in mini_batch_generator:
+                    actor_loss, critic_loss, loss, dist_entropy, task_loss, rnd_loss = self.ppo_agent.train_mini_batch(
+                        learning_rate, clip_range, entropy_coeff, mini_batch, actual_sequence_length)
+                    actor_loss_mean.append(actor_loss)
+                    critic_loss_mean.append(critic_loss)
+                    dist_entropy_mean.append(dist_entropy)
+                    total_loss_mean.append(loss)
+                    if task_loss is not None:
                         task_loss_mean.append(task_loss)
-                else:
-                    for mini_batch in mini_batch_generator:
-                        actor_loss, critic_loss, loss, dist_entropy, _ = self.ppo_agent.train_mini_batch(
-                            learning_rate, clip_range, entropy_coeff, mini_batch, self.buffer.actual_sequence_length)
-                        actor_loss_mean.append(actor_loss)
-                        critic_loss_mean.append(critic_loss)
-                        dist_entropy_mean.append(dist_entropy)
-                        total_loss_mean.append(loss)
-
-            # update old policy
-            # self.ppo_agent.old_policy.load_state_dict(self.ppo_agent.policy.state_dict())
-
+                    if rnd_loss is not None:
+                        rnd_loss_mean.append(rnd_loss)
             # free memory
             if self.multi_task:
                 for b in self.buffer:
@@ -200,9 +195,13 @@ class Trainer:
             self.writer.add_scalar('Loss/entropy', np.mean(dist_entropy_mean), self.update)
             if len(task_loss_mean) != 0:
                 self.writer.add_scalar('Loss/task', np.mean(task_loss_mean), self.update)
+            if len(rnd_loss_mean) != 0:
+                self.writer.add_scalar('Loss/rnd', np.mean(rnd_loss_mean), self.update)
             self.writer.add_scalar('Parameter/learning_rate', learning_rate, self.update)
             self.writer.add_scalar('Parameter/clip_range', clip_range, self.update)
             self.writer.add_scalar('Parameter/entropy_coeff', entropy_coeff, self.update)
+            if mean_rnd_reward != None:
+                self.writer.add_scalar('Train/rnd_reward_mean', mean_rnd_reward, self.update)
             if(len(episode_result) > 0):
                 self.writer.add_scalar('Train/reward_mean', episode_result['reward_mean'], self.update)
                 self.writer.add_scalar('Train/reward_std', episode_result['reward_std'], self.update)
@@ -254,6 +253,7 @@ class Trainer:
         for t in range(self.worker_steps):
             # Gradients can be omitted for sampling training data
             with torch.no_grad():
+                # Preprocess state data
                 state_t = PPO._state_2_tensor(self.obs, self.device)
                 if isinstance(state_t, list):
                     if self.multi_task:
@@ -291,10 +291,10 @@ class Trainer:
 
                 # Forward the model
                 if self.multi_task:
-                    action_t, action_logprob_t, value_t, self.recurrent_cell = self._multi_task_select_action(
+                    action_t, action_logprob_t, value_t, rnd_value_t, self.recurrent_cell = self._multi_task_select_action(
                         reshaped_state_t, self.buffer_mask)
                 else:
-                    action_t, action_logprob_t, value_t, self.recurrent_cell = self.ppo_agent.select_action(
+                    action_t, action_logprob_t, value_t, rnd_value_t, self.recurrent_cell = self.ppo_agent.select_action(
                         state_t, self.recurrent_cell)
                 if self.multi_task:
                     # save to diffrent buffer
@@ -302,17 +302,19 @@ class Trainer:
                         self.buffer[i].actions[:, t] = torch.index_select(action_t, 0, m)
                         self.buffer[i].log_probs[:, t] = torch.index_select(action_logprob_t, 0, m)
                         self.buffer[i].values[:, t] = torch.index_select(value_t, 0, m)
+                        self.buffer[i].rnd_values[:, t] = torch.index_select(rnd_value_t, 0, m)
                 else:
                     self.buffer.actions[:, t] = action_t
                     self.buffer.log_probs[:, t] = action_logprob_t
                     self.buffer.values[:, t] = value_t
+                    self.buffer.rnd_values[:, t] = rnd_value_t
             # restore action order
             if self.multi_task:
                 restored_action_t = torch.index_select(action_t, 0, self.original_order)
             # Send actions to the environments
             for w, worker in enumerate(self.workers):
                 worker.child.send(('step', restored_action_t[w].cpu().numpy()
-                                  if self.multi_task else state_t[w].cpu().numpy()))
+                                  if self.multi_task else action_t[w].cpu().numpy()))
 
             # Retrieve step results from the environments
             for w, worker in enumerate(self.workers):
@@ -353,24 +355,52 @@ class Trainer:
                 # Store latest observations
                 self.obs[w] = obs_w
 
+            # save next obs in buffer for rnd
+            if self.use_rnd:
+                _state_t = PPO._state_2_tensor(self.obs, self.device)
+                if self.multi_task:
+                    _rnd_state_t = torch.index_select(_state_t[0], 0, torch.cat(self.mask))
+                    for i, m in enumerate(self.buffer_mask):
+                        self.buffer[i].rnd_next_obs[:, t] = torch.index_select(_rnd_state_t, 0, m)
+                else:
+                    self.buffer.rnd_next_obs[:, t] = _state_t[0] if isinstance(_state_t, list) else _state_t
+
+        # Calculate internal reward
+        if self.use_rnd:
+            next_state = torch.cat([b.rnd_next_obs for b in self.buffer],
+                                   dim=0) if self.multi_task else self.buffer.rnd_next_obs
+            total_rnd_rewards = self.ppo_agent.policy.rnd.calculate_rnd_rewards(next_state)
+            if self.multi_task:
+                num_worker_task = [b.rnd_rewards.shape[0] for b in self.buffer]
+                idx = np.cumsum(num_worker_task)
+                rnd_rewards = np.split(total_rnd_rewards[:idx[-1]], idx[:-1])
+                for b, r in zip(self.buffer, rnd_rewards):
+                    b.rnd_rewards = r
+                    b.normalize_rnd_rewards()
+            else:
+                self.buffer.rnd_rewards = total_rnd_rewards
+                self.buffer.normalize_rnd_rewards()
+            mean_rnd_reward = total_rnd_rewards.mean().item()
+        else:
+            mean_rnd_reward = None
+
         # Calculate advantages
         state_t = PPO._state_2_tensor(self.obs, self.device)
         if self.multi_task:
             state_t = [torch.index_select(s, 0, torch.cat(self.mask)) for s in state_t]
-            _, _, last_value_t, _ = self._multi_task_select_action(state_t, self.buffer_mask)
-        else:
-            _, _, last_value_t, _ = self.ppo_agent.select_action(state_t, self.recurrent_cell)
-        if self.multi_task:
+            _, _, last_value_t, last_rnd_value_t, _ = self._multi_task_select_action(state_t, self.buffer_mask)
             for b, m in zip(self.buffer, self.buffer_mask):
-                b.calc_advantages(torch.index_select(last_value_t, 0, m))
+                b.calc_advantages(torch.index_select(last_value_t, 0, m), torch.index_select(last_rnd_value_t, 0, m))
         else:
-            self.buffer.calc_advantages(last_value_t)
-        return episode_infos
+            _, _, last_value_t, last_rnd_value_t, _ = self.ppo_agent.select_action(state_t, self.recurrent_cell)
+            self.buffer.calc_advantages(last_value_t, last_rnd_value_t)
+        return episode_infos, mean_rnd_reward
 
     def _multi_task_select_action(self, reshaped_state, buffer_mask):
         action_t = None
         action_logprob_t = None
         value_t = None
+        ext_value_t = None
         recurrent_cell_t = None
         for i, m in enumerate(buffer_mask):
             task_state = [torch.index_select(s, 0, m) for s in reshaped_state]
@@ -382,12 +412,13 @@ class Trainer:
                                       torch.index_select(self.recurrent_cell[1], 1, m))
                 else:
                     raise NotImplementedError(self.layer_type)
-            action_t_, action_logprob_t_, value_t_, recurrent_cell_t_ = self.ppo_agent.select_action(
+            action_t_, action_logprob_t_, value_t_, ext_value_t_, recurrent_cell_t_ = self.ppo_agent.select_action(
                 task_state, task_hidden_in, i)
             action_t = torch.cat((action_t, action_t_), 0) if action_t is not None else action_t_
             action_logprob_t = torch.cat((action_logprob_t, action_logprob_t_),
                                          0) if action_logprob_t is not None else action_logprob_t_
             value_t = torch.cat((value_t, value_t_), 0) if value_t is not None else value_t_
+            ext_value_t = torch.cat((ext_value_t, ext_value_t_), 0) if ext_value_t is not None else ext_value_t_
             if self.use_lstm:
                 if self.layer_type == 'gru':
                     recurrent_cell_t = torch.cat((recurrent_cell_t, recurrent_cell_t_),
@@ -397,7 +428,7 @@ class Trainer:
                                         torch.cat((recurrent_cell_t[1], recurrent_cell_t_[1]), 1)) if recurrent_cell_t_ is not None else recurrent_cell_t_
                 else:
                     raise NotImplementedError(self.layer_type)
-        return action_t, action_logprob_t, value_t, recurrent_cell_t
+        return action_t, action_logprob_t, value_t, ext_value_t, recurrent_cell_t
 
     def _state_classified_mask(self, state: list):
         ''' According to the taskid in the state, classify the state and generate a classified mask.
@@ -488,6 +519,7 @@ class Trainer:
         self.i_episode = self.conf_train.setdefault('i_episode', 0)
         self.resume = self.conf_train.setdefault('resume', False)
         self.multi_task = self.conf_train.setdefault('multi_task', False)
+        self.use_rnd = self.conf_train.setdefault('use_rnd', False)
 
         # PPO hyperparameters
         conf_ppo = {}

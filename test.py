@@ -12,7 +12,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     '--config',
     type=str,
-    default='PPO_logs/HalfCheetahVel/MA1C_2_task/run_5/config.yaml',
+    default='PPO_logs/UnityMultitask/rnd_evo/run_1/test.yaml',
     help='The config file',
 )
 parser.add_argument(
@@ -73,7 +73,7 @@ def test(args):
             h_out = ppo_agent.init_recurrent_cell_states(1)
             while True:
                 h_in = h_out
-                action, _, _, h_out = ppo_agent.select_action(PPO._state_2_tensor(state, device), h_in, 1)
+                action, h_out = ppo_agent.eval_select_action(PPO._state_2_tensor(state, device), h_in)
                 state, _, _, info = env.step(action[0].cpu().numpy())
                 if render:
                     env.render()
