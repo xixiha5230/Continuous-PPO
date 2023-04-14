@@ -8,6 +8,7 @@ from envs.Hoper.HopperJump import HopperJump
 from envs.Hoper.HopperRun import HopperRun
 from envs.HalfCheetah.HalfCheetahVel import HalfCheetahVel
 from envs.HalfCheetah.HalfCheetahDir import HalfCheetahDir
+from envs.UnityMultitask import UnityMultitask
 
 
 def create_env(conf: dict, id: int = 0, render_mode=None, time_scale=2):
@@ -55,5 +56,7 @@ def create_env(conf: dict, id: int = 0, render_mode=None, time_scale=2):
         return HalfCheetahDir(task=task, render_mode=render_mode, id=id)
     elif "MiniGrid" in env_name:
         return Minigrid(env_name, render_mode)
+    elif env_name == 'UnityMultitask':
+        return UnityMultitask(task, id, time_scale)
     else:
         raise f'Unknow env: {env_name}'

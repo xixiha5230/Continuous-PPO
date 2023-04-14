@@ -12,7 +12,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     '--config',
     type=str,
-    default='PPO_logs/MiniGrid-MemoryS9-v0/MinigridMemory_lstm_No_old_policy/run_8/config.yaml',
+    default='PPO_logs/UnityMultitask/rnd_evo/run_1/test.yaml',
     help='The config file',
 )
 parser.add_argument(
@@ -44,7 +44,7 @@ def test(args):
     frame_delay = 0.01
     total_test_episodes = 1 if args.save_gif else 10
 
-    env = create_env(config, render_mode='rgb_array' if args.save_gif else 'human', id=100, time_scale=1)
+    env = create_env(config, render_mode='rgb_array' if args.save_gif else 'human', id=101, time_scale=1)
     observation_space = env.observation_space
     if action_type == 'continuous':
         action_space = env.action_space
@@ -73,7 +73,7 @@ def test(args):
             h_out = ppo_agent.init_recurrent_cell_states(1)
             while True:
                 h_in = h_out
-                action, _, _, h_out = ppo_agent.select_action(PPO._state_2_tensor(state, device), h_in)
+                action, h_out = ppo_agent.eval_select_action(PPO._state_2_tensor(state, device), h_in)
                 state, _, _, info = env.step(action[0].cpu().numpy())
                 if render:
                     env.render()

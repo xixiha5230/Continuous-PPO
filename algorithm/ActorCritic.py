@@ -1,13 +1,14 @@
 import torch
 import torch.nn as nn
-from torch.distributions import Categorical, Normal
-
-import numpy as np
-# TODO Use tuple?
 from gym import spaces as gym_spaces
 from gymnasium import spaces as gymnasium_spaces
-from layers.StateNet import StateNetUGV, StateNetImage, weights_init_
-from layers.TaskNet import VectorWithTask
+from layers.RNN import RNN
+from algorithm.RND import RND
+from layers.Critic import Critic
+from layers.Hidden import HiddenNet
+from layers.TaskNet import TaskNet, TaskPredictNet
+from layers.StateNet import ObsNetUGV, ObsNetImage
+from layers.Actor import GaussianActor, MultiGaussianActor
 
 
 class ActorCritic(nn.Module):
@@ -21,105 +22,121 @@ class ActorCritic(nn.Module):
             config {dict} -- config dictionary
         '''
         super(ActorCritic, self).__init__()
-        self.config = config
-
-        self.conf_train = config['train']
-        self.action_type = self.conf_train['action_type']
-        self.device = self.conf_train['device']
-        self.hidden_layer_size = self.conf_train['hidden_layer_size']
-
-        self.conf_recurrence = config['recurrence']
-        self.use_lstm = self.conf_recurrence['use_lstm']
-        self.layer_type = self.conf_recurrence['layer_type']
-        if self.use_lstm:
-            self.hidden_state_size = self.conf_recurrence['hidden_state_size']
-        if self.action_type == 'continuous':
-            self.action_dim = action_space.shape[0]
-            self.action_max = max(action_space.high)
-        elif self.action_type == 'discrete':
-            self.action_dim = action_space
-        else:
-            raise NotImplementedError(self.action_type)
+        conf_train = config['train']
+        self.hidden_layer_size = conf_train['hidden_layer_size']
+        self.multi_task = conf_train['multi_task']
+        self.use_rnd = conf_train['use_rnd']
+        conf_recurrence = config['recurrence']
+        self.use_lstm = conf_recurrence['use_lstm']
         self.obs_space = obs_space
-        # complex input
-        if isinstance(obs_space, gym_spaces.Tuple) or isinstance(obs_space, gymnasium_spaces.Tuple):
+
+        # RND
+        if self.use_rnd:
+            # Only rnd the first dimension of the observation space
+            self.rnd = RND(config, obs_space[0].shape)
+            for p in self.rnd.target_net.parameters():
+                p.requires_grad = False
+
+        # Observation feature extraction
+        if isinstance(obs_space, (gym_spaces.Tuple, gymnasium_spaces.Tuple)):
             # UGV
-            if(obs_space[0].shape == (84, 84, 3)):
-                self.state = StateNetUGV(obs_space)
-            # Simple Vector With Task ID
-            elif len(obs_space[0].shape) == 1:
-                self.state = VectorWithTask(obs_space)
+            if not self.multi_task and obs_space[0].shape == (84, 84, 3) and obs_space[1].shape == (400,):
+                self.obs_net = ObsNetUGV(obs_space)
+                in_features_size = self.obs_net.output_size
+            # UGV with Task ID
+            elif self.multi_task and obs_space[0].shape == (84, 84, 3) and obs_space[1].shape == (400,):
+                self.obs_net = ObsNetUGV(obs_space)
+                in_features_size = self.obs_net.output_size
+                self.task_num = len(self.config.get('task', []))
+                self.task_net = TaskNet(self.obs_space[-1].shape[0], 16)
+                self.task_feature_size = self.task_net.output_size
+                self.task_predict_net = TaskPredictNet(self.hidden_layer_size, 64, self.task_num)
+            # Simple Vector With Task ID shape like((17,), (4,))
+            elif self.multi_task and len(obs_space[0].shape) == 1 and len(obs_space[1].shape) == 1:
+                self.task_num = len(self.config.get('task', []))
+                self.task_net = TaskNet(self.obs_space[1].shape[0], 16)
+                self.task_feature_size = self.task_net.output_size
+                self.task_predict_net = TaskPredictNet(self.hidden_layer_size, 64, self.task_num)
+                in_features_size = self.obs_space[0].shape[0]
             else:
                 raise NotImplementedError(obs_space)
-            in_features_size = self.state.out_size
         # simple vector
         elif len(obs_space.shape) == 1:
             in_features_size = obs_space.shape[0]
         # single image
         elif len(obs_space.shape) == 3:
-            self.state = StateNetImage(obs_space)
-            in_features_size = self.state.out_size
+            self.obs_net = ObsNetImage(obs_space)
+            in_features_size = self.obs_net.output_size
         else:
             raise NotImplementedError(obs_space.shape)
 
-        # gru
+        # rnn
         if self.use_lstm:
-            if self.layer_type == 'gru':
-                self.rnn = nn.GRU(in_features_size,
-                                  self.hidden_state_size, batch_first=True)
-            elif self.layer_type == 'lstm':
-                self.rnn = nn.LSTM(in_features_size, self.hidden_state_size, batch_first=True)
-            else:
-                raise NotImplementedError(self.layer_type)
-            self.rnn.apply(weights_init_)
-
-            after_rnn_size = self.hidden_state_size
+            self.rnn_net = RNN(config, in_features_size)
+            after_rnn_size = self.rnn_net.output_size
         else:
             after_rnn_size = in_features_size
 
-        # hidden layer
-        self.lin_hidden = nn.Sequential(
-            nn.Linear(after_rnn_size, self.hidden_layer_size),
-            nn.ReLU()
-        )
-        self.lin_hidden.apply(weights_init_)
+        # hidden layer: out shape(self.hidden_layer_size,)
+        self.hidden_net = HiddenNet(after_rnn_size, self.hidden_layer_size)
 
-        # actor
-        if self.action_type == 'continuous':
-            ac_h = nn.Linear(self.hidden_layer_size, self.hidden_layer_size)
-            nn.init.orthogonal_(ac_h.weight, np.sqrt(2))
-            ac = nn.Linear(self.hidden_layer_size, self.action_dim)
-            nn.init.orthogonal_(ac.weight, np.sqrt(0.01))
-            self.mu = nn.Sequential()
-            self.mu.append(ac_h).append(nn.ReLU())
-            self.mu.append(ac).append(nn.Tanh())
-            std = nn.Linear(self.hidden_layer_size, self.action_dim)
-            nn.init.orthogonal_(std.weight, np.sqrt(0.01))
-            self.sigma = nn.Sequential()
-            self.sigma.append(std).append(nn.Softmax(dim=-1))
-        elif self.action_type == 'discrete':
-            ac_h = nn.Linear(self.hidden_layer_size, self.hidden_layer_size)
-            nn.init.orthogonal_(ac_h.weight, np.sqrt(2))
-            ac = nn.Linear(self.hidden_layer_size, self.action_dim)
-            nn.init.orthogonal_(ac.weight, np.sqrt(0.01))
-            self.mu = nn.Sequential()
-            self.mu.append(ac_h)
-            self.mu.append(nn.ReLU())
-            self.mu.append(ac)
+        # actor: in shape(self.hidden_layer_size,)
+        if self.multi_task:
+            self.actor = MultiGaussianActor(config, self.hidden_layer_size, action_space, self.task_num)
+            # self.critic = MultiCritic(self.hidden_layer_size, 1, config=config, task_num=self.task_num)
+            self.critic = Critic(config, self.hidden_layer_size + self.task_feature_size, 1)
         else:
-            raise NotImplementedError(self.action_type)
+            self.actor = GaussianActor(config, self.hidden_layer_size, action_space)
+            self.critic = Critic(config, self.hidden_layer_size, 1)
 
-        # critic
-        vlaue_h = nn.Linear(self.hidden_layer_size, self.hidden_layer_size)
-        nn.init.orthogonal_(vlaue_h.weight, np.sqrt(2))
-        value = nn.Linear(self.hidden_layer_size, 1)
-        nn.init.orthogonal_(value.weight, 1)
-        self.critic = nn.Sequential()
-        self.critic.append(vlaue_h).append(nn.ReLU())
-        self.critic.append(value)
-
-    def forward(self, state, hidden_in: torch.Tensor = None, sequence_length: int = 1):
+    def forward(self, obs, hidden_in: torch.Tensor = None, sequence_length: int = 1, module_index: int = -1):
         '''
+        Args:
+            state {tensor, list} -- observation tensor
+            hidden_in {torch.Tensor} -- RNN hidden in feature
+            sequence_length {int} -- RNN sequence length
+            module_index {int} -- index of Actor or Critic to select
+        Returns:
+            {dist}: action dist
+            {value}: value base on current state
+            {hidden_out}: RNN hidden out feature  
+        '''
+        # complex input or image or multi_task(obs and task id)
+        if isinstance(self.obs_space, (gymnasium_spaces.Tuple, gym_spaces.Tuple)) or len(self.obs_space.shape) == 3:
+            if self.multi_task:
+                task_feature = self.task_net(obs[-1])
+                feature = obs[0] if len(obs[0].shape) == 2 else self.obs_net(obs[:-1])
+            else:
+                feature = self.obs_net(obs)
+        else:
+            feature = obs
+
+        # rnn
+        if self.use_lstm:
+            feature, hidden_out = self.rnn_net(feature, hidden_in, sequence_length)
+        else:
+            hidden_out = None
+
+        # hiddden
+        feature = self.hidden_net(feature)
+
+        if self.multi_task:
+            # select actor
+            dist = self.actor(feature, module_index)
+            task_predict = self.task_predict_net(feature)
+            # critic
+            value, rnd_value = self.critic(torch.cat((feature, task_feature), -1))
+        else:
+            # actor
+            dist = self.actor(feature)
+            task_predict = None
+            # critic
+            value, rnd_value = self.critic(feature)
+        return dist, value, rnd_value, hidden_out, task_predict
+
+    def eval_forward(self, obs, hidden_in: torch.Tensor = None, sequence_length: int = 1, module_index: int = -1):
+        '''
+        Only use for test no training: auto select actor to forward
         Args:
             state {tensor, list} -- observation tensor
             hidden_in {torch.Tensor} -- RNN hidden in feature
@@ -129,43 +146,32 @@ class ActorCritic(nn.Module):
             {value}: value base on current state
             {hidden_out}: RNN hidden out feature  
         '''
-        # complex input or image
-        if isinstance(self.obs_space, gymnasium_spaces.Tuple) or isinstance(self.obs_space, gym_spaces.Tuple) or len(self.obs_space.shape) == 3:
-            feature = self.state(state)
-        else:
-            feature = state
-
-        # lstm
-        if self.use_lstm:
-            if sequence_length == 1:
-                # Case: sampling training data or model optimization using sequence length == 1
-                feature, hidden_out = self.rnn(feature.unsqueeze(1), hidden_in)
-                # Remove sequence length dimension
-                feature = feature.squeeze(1)
+        # complex input or image or multi_task(obs and task id)
+        if isinstance(self.obs_space, (gymnasium_spaces.Tuple, gym_spaces.Tuple)) or len(self.obs_space.shape) == 3:
+            if self.multi_task:
+                feature = obs[0] if len(obs[0].shape) == 2 else self.obs_net(obs[:-1])
             else:
-                feature_shape = tuple(feature.size())
-                feature = feature.reshape((feature_shape[0] // sequence_length), sequence_length, feature_shape[1])
-                feature, hidden_out = self.rnn(feature, hidden_in)
-                out_shape = tuple(feature.size())
-                feature = feature.reshape(out_shape[0] * out_shape[1], out_shape[2])
+                feature = self.obs_net(obs)
+        else:
+            feature = obs
+
+        # rnn
+        if self.use_lstm:
+            feature, hidden_out = self.rnn_net(feature, hidden_in, sequence_length)
         else:
             hidden_out = None
 
         # hiddden
-        feature = self.lin_hidden(feature)
-
-        # actor
-        if self.action_type == 'continuous':
-            action_mean = self.action_max * self.mu(feature)
-            action_std = self.sigma(feature)
-            dist = Normal(action_mean, action_std)
-        elif self.action_type == 'discrete':
-            action_probs = self.mu(feature)
-            dist = Categorical(logits=action_probs)
+        feature = self.hidden_net(feature)
+        if self.multi_task:
+            if module_index == -1:
+                task_predict = self.task_predict_net(feature)
+                module_index = torch.argmax(task_predict).item()
+                print(module_index)
+            # select actor
+            dist = self.actor(feature, module_index)
         else:
-            raise NotImplementedError(self.action_type)
+            # actor
+            dist = self.actor(feature)
 
-        # critic
-        value = self.critic(feature)
-        value = value.squeeze(-1)
-        return dist, value, hidden_out if hidden_out != None else None
+        return dist, hidden_out

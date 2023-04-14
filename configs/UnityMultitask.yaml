@@ -1,7 +1,7 @@
 ppo:
   entropy_coeff_schedule:
-    init: 0.0
-    final: 0.0
+    init: 0.001
+    final: 0.001
     pow: 1.0
     max_decay_steps: 0
   clip_range_schedule:
@@ -16,27 +16,31 @@ ppo:
     max_decay_steps: 0
   gamma: 0.99
   lamda: 0.95
-  vf_loss_coeff: 0.25
+  vf_loss_coeff: 0.5
 recurrence:
-  hidden_state_size: 128
+  hidden_state_size: 512
   layer_type: gru
   reset_hidden_state: true
-  sequence_length: 8
+  sequence_length: 16
   use_lstm: true
 train:
   K_epochs: 4
   device: cuda
-  env_name: HalfCheetahVel
-  exp_name: MA1C_2_task_add_task_predict
+  env_name: UnityMultitask
+  exp_name: rnd_evo
   action_type: continuous
-  hidden_layer_size: 256
-  max_updates: 2000
+  hidden_layer_size: 512
+  max_updates: 1000
   num_mini_batch: 8
   random_seed: 0
   save_model_freq: 10
   multi_task: true
+  use_rnd: true
 worker:
-  num_workers: 12
+  num_workers: 6
   worker_steps: 512
-task: [{ one_hot: [1, 0], velocity: 1 }, { one_hot: [0, 1], velocity: 2 }]
-# { one_hot: [0, 0, 1, 0], velocity: 2 },
+task:
+  [
+    { "one_hot": [1, 0, 0, 0], "file_name": "UnityEnvs/UnityMultitask/Task0" },
+    { "one_hot": [0, 1, 0, 0], "file_name": "UnityEnvs/UnityMultitask/Task1" },
+  ]

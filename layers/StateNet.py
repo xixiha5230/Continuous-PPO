@@ -15,6 +15,7 @@ def weights_init_(m: nn.Module):
     '''
     if isinstance(m, nn.Linear) or isinstance(m, nn.Conv2d) or isinstance(m, Conv1d):
         nn.init.orthogonal_(m.weight, np.sqrt(2))
+        m.bias.data.zero_()
     elif isinstance(m, nn.GRU) or isinstance(m, nn.LSTM):
         for name, param in m.named_parameters():
             if 'bias' in name:
@@ -84,7 +85,7 @@ class AtariImage(nn.Module):
             nn.ReLU(),
         )
         self.conv.apply(weights_init_)
-        self.out_size = conv_3_hw[0] * conv_3_hw[1] * 64
+        self.output_size = conv_3_hw[0] * conv_3_hw[1] * 64
 
     def forward(self, x: torch.Tensor):
         '''
@@ -92,21 +93,23 @@ class AtariImage(nn.Module):
             x {torch.Tensor} -- image tensor shape like (84, 84, 3)
         '''
         # TODO 环境采样时使用（3，84，84）不用每次都permute
+        if len(x.shape) == 3:
+            x = x.unsqueeze(0)
         x = x.permute(0, 3, 1, 2)
         x = self.conv(x)
-        x = x.reshape(x.shape[0], self.out_size)
+        x = x.reshape(x.shape[0], self.output_size)
         return x
 
 
 class Conv1d(nn.Module):
     ''' dense sensor data convolution module '''
 
-    def __init__(self, length: int, channel: int, out_size: int):
+    def __init__(self, length: int, channel: int, output_size: int):
         '''
         Args:
             length {int} -- data length
             channel {int} -- data chanel
-            out_size {int} -- output dimension
+            output_size {int} -- output dimension
         '''
         super(Conv1d, self).__init__()
 
@@ -122,55 +125,55 @@ class Conv1d(nn.Module):
 
         self.fc_input = conv_2_l * 32
         self.fc = nn.Sequential(
-            nn.Linear(self.fc_input, out_size),
+            nn.Linear(self.fc_input, output_size),
             nn.ReLU()
         )
         self.fc.apply(weights_init_)
-        self.out_size = out_size
+        self.output_size = output_size
 
     def forward(self, x: torch.Tensor):
         '''
         Args:
             x {torch.Tensor} -- tensor of sensor data shape like (batch, 400)
         '''
-        batch = x.shape[-2]
-        x = x.reshape(x.shape[-2], 2, x.shape[-1] // 2)
+        batch = x.shape[0]
+        if len(x.shape) == 2:
+            x = x.unsqueeze(1)
         hidden = self.conv(x)
-        hidden = hidden.reshape(batch, self.fc_input)
+        hidden = hidden.view(batch, -1)
         x = self.fc(hidden)
         return x
+    
+class ObsNetImage(nn.Module):
+    ''' single image process module '''
 
-
-class UGVImage(nn.Module):
-    ''' UGV image data convolution module '''
-
-    def __init__(self, shape, out_size) -> None:
+    def __init__(self, obs_shape: spaces.Tuple, output_size: int = 128) -> None:
         '''
         Args:
-            shape {int} -- image shape
-            out_size {int} -- output dimension
+            obs_shape {tuple} -- like (84, 84, 3)
         '''
-        super(UGVImage, self).__init__()
-        self.conv2d = AtariImage(shape)
-        self.fc_input = self.conv2d.out_size
+        assert obs_shape == (84, 84, 3) or obs_shape == (96, 96, 3)
+        super(ObsNetImage, self).__init__()
+        self.conv2d = AtariImage(obs_shape)
         self.fc = nn.Sequential(
-            nn.Linear(self.fc_input, out_size),
+            nn.Linear(self.conv2d.output_size, output_size),
             nn.ReLU()
         )
         self.fc.apply(weights_init_)
-        self.out_size = out_size
+        self.output_size = output_size
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, obs: torch.Tensor):
         '''
         Args:
-            x {torch.Tensor} -- tensor of sensor data shape like (batch, 84,84,3)
+            obs {torch.Tensor} -- tensor of image 
         '''
-        x = self.conv2d(x)
+        if len(obs.shape) == 3:
+            obs = obs.unsqueeze(0)
+        x = self.conv2d(obs)
         x = self.fc(x)
         return x
-
-
-class StateNetUGV(nn.Module):
+    
+class ObsNetUGV(nn.Module):
     ''' UGV environment data process module '''
 
     def __init__(self, obs_space: spaces.Tuple) -> None:
@@ -180,46 +183,23 @@ class StateNetUGV(nn.Module):
         '''
         assert obs_space[0].shape == (84, 84, 3)
         assert obs_space[1].shape == (400,)
-        super(StateNetUGV, self).__init__()
+        super(ObsNetUGV, self).__init__()
 
-        self.conv1d = Conv1d(obs_space[1].shape[0] // 2, 2, 64)
-        self.conv2d = UGVImage(obs_space[0].shape, 64)
-        self.out_size = self.conv1d.out_size + self.conv2d.out_size
+        self.conv1d = Conv1d(obs_space[1].shape[0], 1, 64)
+        self.conv2d = ObsNetImage(obs_space[0].shape, 64)
+        self.output_size = self.conv1d.output_size + self.conv2d.output_size
 
-    def forward(self, state: list):
+    def forward(self, obs: list):
         '''
         Args:
-            state {list} -- state is list of [image tensor, sensor tensor]
+            obs {list} -- state is list of [image tensor, sensor tensor]
         '''
-        img_batch = state[0]
-        ray_batch = state[1]
+        img_batch = obs[0]
+        ray_batch = obs[1]
 
         img = self.conv2d(img_batch)
         ray = self.conv1d(ray_batch)
 
         x = torch.cat([img, ray], dim=-1)
         return x
-
-
-class StateNetImage(nn.Module):
-    ''' single image process module '''
-
-    def __init__(self, obs_space: spaces.Tuple) -> None:
-        '''
-        Args:
-            obs_space {spaces.Tuple} -- shape is (84, 84, 3)
-        '''
-        assert obs_space.shape == (84, 84, 3)
-        super(StateNetImage, self).__init__()
-        self.conv2d = AtariImage(obs_space.shape)
-        self.out_size = self.conv2d.out_size
-
-    def forward(self, state: torch.Tensor):
-        '''
-        Args:
-            state {torch.Tensor} -- tensor of image 
-        '''
-        if len(state.shape) == 3:
-            state = state.unsqueeze(0)
-        x = self.conv2d(state)
-        return x
+    

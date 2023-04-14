@@ -1,38 +1,38 @@
 ppo:
   entropy_coeff_schedule:
-    init: 0.1
-    final: 0.001
-    power: 1.0
-    max_decay_steps: 400
+    init: 0.0
+    final: 0.0
+    pow: 1.0
+    max_decay_steps: 0
   clip_range_schedule:
-    init: 0.3
+    init: 0.2
     final: 0.2
-    power: 1.0
-    max_decay_steps: 450
+    pow: 1.0
+    max_decay_steps: 0
   lr_schedule:
     init: 3.0e-4
-    final: 3.0e-6
-    power: 1.0
-    max_decay_steps: 450
+    final: 3.0e-4
+    pow: 1.0
+    max_decay_steps: 0
   gamma: 0.99
   lamda: 0.95
-  vf_loss_coeff: 0.5
+  vf_loss_coeff: 0.25
 recurrence:
-  hidden_state_size: 256
+  hidden_state_size: 64
   layer_type: gru
   reset_hidden_state: true
-  sequence_length: 8
+  sequence_length: 16
   use_lstm: true
 train:
   K_epochs: 4
   device: cuda
   env_name: Walker2d-v4
-  exp_name: lstm_continuous
+  exp_name: gru_64_128
   action_type: continuous
-  hidden_layer_size: 512
-  max_updates: 500
+  hidden_layer_size: 128
+  max_updates: 5000
   num_mini_batch: 8
-  random_seed: 0
+  random_seed: 5230
   save_model_freq: 10
 worker:
   num_workers: 6
