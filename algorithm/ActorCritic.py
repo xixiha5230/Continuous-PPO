@@ -2,13 +2,14 @@ import torch
 import torch.nn as nn
 from gym import spaces as gym_spaces
 from gymnasium import spaces as gymnasium_spaces
-from layers.RNN import RNN
+
 from algorithm.RND import RND
+from layers.Actor import GaussianActor, MultiGaussianActor
 from layers.Critic import Critic
 from layers.Hidden import HiddenNet
+from layers.RNN import RNN
+from layers.StateNet import ObsNetImage, ObsNetUGV
 from layers.TaskNet import TaskNet, TaskPredictNet
-from layers.StateNet import ObsNetUGV, ObsNetImage
-from layers.Actor import GaussianActor, MultiGaussianActor
 
 
 class ActorCritic(nn.Module):
@@ -47,13 +48,13 @@ class ActorCritic(nn.Module):
             elif self.multi_task and obs_space[0].shape == (84, 84, 3) and obs_space[1].shape == (400,):
                 self.obs_net = ObsNetUGV(obs_space)
                 in_features_size = self.obs_net.output_size
-                self.task_num = len(self.config.get('task', []))
+                self.task_num = len(config.get('task', []))
                 self.task_net = TaskNet(self.obs_space[-1].shape[0], 16)
                 self.task_feature_size = self.task_net.output_size
                 self.task_predict_net = TaskPredictNet(self.hidden_layer_size, 64, self.task_num)
             # Simple Vector With Task ID shape like((17,), (4,))
             elif self.multi_task and len(obs_space[0].shape) == 1 and len(obs_space[1].shape) == 1:
-                self.task_num = len(self.config.get('task', []))
+                self.task_num = len(config.get('task', []))
                 self.task_net = TaskNet(self.obs_space[1].shape[0], 16)
                 self.task_feature_size = self.task_net.output_size
                 self.task_predict_net = TaskPredictNet(self.hidden_layer_size, 64, self.task_num)
