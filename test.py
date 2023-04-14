@@ -1,12 +1,15 @@
+import argparse
 import glob
 import os
 import time
-import argparse
-import yaml
+
 import imageio
 import torch
+import yaml
+
 from algorithm.PPO import PPO
 from utils.env_helper import create_env
+from utils.obs_2_tensor import _obs_2_tensor
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -26,7 +29,7 @@ def test(args):
     if(torch.cuda.is_available()):
         device = 'cuda'
         torch.cuda.empty_cache()
-        print('Device set to : ' + str(torch.cuda.get_device_name(device)))
+        print(f'Device set to : {torch.cuda.get_device_name(device)}')
     else:
         device = 'cpu'
         print('Device set to : cpu')
@@ -73,7 +76,7 @@ def test(args):
             h_out = ppo_agent.init_recurrent_cell_states(1)
             while True:
                 h_in = h_out
-                action, h_out = ppo_agent.eval_select_action(PPO._state_2_tensor(state, device), h_in)
+                action, h_out = ppo_agent.eval_select_action(_obs_2_tensor(state, device), h_in)
                 state, _, _, info = env.step(action[0].cpu().numpy())
                 if render:
                     env.render()
@@ -97,5 +100,4 @@ def test(args):
 
 
 if __name__ == '__main__':
-    args = parser.parse_args()
-    test(args)
+    test(parser.parse_args())

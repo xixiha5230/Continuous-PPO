@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
-from layers.StateNet import weights_init_
+
+from utils.weights_init import weights_init_
 
 
 class HiddenNet(nn.Module):

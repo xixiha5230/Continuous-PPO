@@ -1,6 +1,7 @@
-import sys
 import multiprocessing
 import multiprocessing.connection
+import sys
+
 from utils.env_helper import create_env
 
 

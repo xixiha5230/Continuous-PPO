@@ -1,14 +1,14 @@
-from envs.LunarLander import LunarLander
-from envs.CartPole import CartPole
 from envs.CarRacing import CarRacing
-from envs.Walker2d import Walker2d
-from envs.MountainCar import MountainCar
-from envs.MinigridMemory import Minigrid
+from envs.CartPole import CartPole
+from envs.HalfCheetah.HalfCheetahDir import HalfCheetahDir
+from envs.HalfCheetah.HalfCheetahVel import HalfCheetahVel
 from envs.Hoper.HopperJump import HopperJump
 from envs.Hoper.HopperRun import HopperRun
-from envs.HalfCheetah.HalfCheetahVel import HalfCheetahVel
-from envs.HalfCheetah.HalfCheetahDir import HalfCheetahDir
+from envs.LunarLander import LunarLander
+from envs.MinigridMemory import Minigrid
+from envs.MountainCar import MountainCar
 from envs.UnityMultitask import UnityMultitask
+from envs.Walker2d import Walker2d
 
 
 def create_env(conf: dict, id: int = 0, render_mode=None, time_scale=2):

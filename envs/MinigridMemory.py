@@ -1,7 +1,7 @@
-import numpy as np
 import gymnasium
-from gymnasium.spaces import Tuple, Box, Discrete
-from minigrid.wrappers import RGBImgPartialObsWrapper, ViewSizeWrapper
+import numpy as np
+from gymnasium.spaces import Box, Discrete
+from minigrid.wrappers import RGBImgPartialObsWrapper
 
 
 class Minigrid:
@@ -51,8 +51,9 @@ class Minigrid:
 
 
 if __name__ == '__main__':
-    import cv2
     import time
+
+    import cv2
 
     cv2.namedWindow("obs", 0)
     cv2.resizeWindow("obs", 300, 300)

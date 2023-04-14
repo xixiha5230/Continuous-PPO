@@ -1,22 +1,23 @@
-import yaml
-import signal
-import os
 import glob
+import os
 import pickle
-
-import torch
-import numpy as np
-import tensorboardX
+import signal
 from datetime import datetime
 
-from algorithm.PPO import PPO
-from utils.env_helper import create_env
-from replaybuffer.Buffer import Buffer
-from worker.Worker import Worker
-from gymnasium import spaces as gymnasium_spaces
+import numpy as np
+import tensorboardX
+import torch
+import yaml
 from gym import spaces as gym_spaces
-from utils.polynomial_decay import polynomial_decay
+from gymnasium import spaces as gymnasium_spaces
+
+from algorithm.PPO import PPO
 from normalization.RewardScaling import RewardScaling
+from replaybuffer.Buffer import Buffer
+from utils.env_helper import create_env
+from utils.obs_2_tensor import _obs_2_tensor
+from utils.polynomial_decay import polynomial_decay
+from worker.Worker import Worker
 
 
 class Trainer:
@@ -254,7 +255,7 @@ class Trainer:
             # Gradients can be omitted for sampling training data
             with torch.no_grad():
                 # Preprocess state data
-                state_t = PPO._state_2_tensor(self.obs, self.device)
+                state_t = _obs_2_tensor(self.obs, self.device)
                 if isinstance(state_t, list):
                     if self.multi_task:
                         # gnenrate select mask
@@ -357,7 +358,7 @@ class Trainer:
 
             # save next obs in buffer for rnd
             if self.use_rnd:
-                _state_t = PPO._state_2_tensor(self.obs, self.device)
+                _state_t = _obs_2_tensor(self.obs, self.device)
                 if self.multi_task:
                     _rnd_state_t = torch.index_select(_state_t[0], 0, torch.cat(self.mask))
                     for i, m in enumerate(self.buffer_mask):
@@ -385,7 +386,7 @@ class Trainer:
             mean_rnd_reward = None
 
         # Calculate advantages
-        state_t = PPO._state_2_tensor(self.obs, self.device)
+        state_t = _obs_2_tensor(self.obs, self.device)
         if self.multi_task:
             state_t = [torch.index_select(s, 0, torch.cat(self.mask)) for s in state_t]
             _, _, last_value_t, last_rnd_value_t, _ = self._multi_task_select_action(state_t, self.buffer_mask)

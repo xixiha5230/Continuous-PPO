@@ -1,4 +1,5 @@
 import argparse
+
 from trainer.Trainer import Trainer
 
 parser = argparse.ArgumentParser()
@@ -6,6 +7,7 @@ parser.add_argument(
     '--config_file',
     type=str,
     default='configs/CarSearch.yaml',
+    # default='configs/LunarLander-v2.yaml',
     help='The config file',
 )
 parser.add_argument(

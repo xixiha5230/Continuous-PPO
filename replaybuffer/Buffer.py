@@ -1,7 +1,9 @@
+import numpy as np
+import torch
 from gym import spaces as gym_spaces
 from gymnasium import spaces as gymnasium_spaces
-import torch
-import numpy as np
+
+from normalization.RNDRunningMeanStd import RNDRunningMeanStd
 
 
 class Buffer():
@@ -29,6 +31,7 @@ class Buffer():
         worker = config['worker']
         if self.multi_task:
             self.task_num = len(config.get('task', []))
+            assert self.task_num > 0
             self.n_workers = worker['num_workers'] // self.task_num
         else:
             self.n_workers = worker['num_workers']
@@ -55,9 +58,9 @@ class Buffer():
         else:
             raise NotImplementedError(self.action_type)
         # Observation
-        if isinstance(observation_space,  gym_spaces.Tuple) or isinstance(observation_space, gymnasium_spaces.Tuple):
+        if isinstance(observation_space,  (gym_spaces.Tuple, gymnasium_spaces.Tuple)):
             self.obs = [[torch.zeros((self.n_workers,) + t.shape).to(self.device)
-                         for t in observation_space] for _ in range(self.worker_steps)]
+                        for t in observation_space]] * self.worker_steps
         else:
             self.obs = torch.zeros((self.n_workers, self.worker_steps) + observation_space.shape).to(self.device)
         # hxs & cxs
@@ -71,12 +74,14 @@ class Buffer():
         # RDN rnd_next_obs && rnd_values && rnd_rewards && rnd_advantages
         if self.use_rnd:
             # only rnd the obs on first dim!!!
-            self.rnd_next_obs = torch.zeros((self.n_workers, self.worker_steps) + observation_space[0].shape).to(self.device)
+            obs_0 = observation_space[0].shape if isinstance(
+                observation_space, (gym_spaces.Tuple, gymnasium_spaces.Tuple)) else observation_space
+            self.rnd_next_obs = torch.zeros((self.n_workers, self.worker_steps) + obs_0.shape).to(self.device)
             self.rnd_values = torch.zeros((self.n_workers, self.worker_steps)).to(self.device)
             self.rnd_rewards = np.zeros((self.n_workers, self.worker_steps), dtype=np.float32)
             self.rnd_advantages = torch.zeros((self.n_workers, self.worker_steps)).to(self.device)
-            # TODO SAVE? reuse? Multitask done
-            self.rnd_reward_rms = RunningMeanStd(shape=(1,))
+            # TODO SAVE? reuse? move to RND?
+            self.rnd_reward_rms = RNDRunningMeanStd(shape=(1,))
 
     def prepare_batch_dict(self) -> None:
         '''Flattens the training samples and stores them inside a dictionary. Due to using a recurrent policy,
@@ -312,52 +317,16 @@ class Buffer():
                 advantages[:, t] = gae
                 last_value = values[:, t]
 
+    # TODO move to RND?
     def normalize_rnd_rewards(self):
         # OpenAI's usage of Forward filter is definitely wrong;
         # Because: https://github.com/openai/random-network-distillation/issues/16#issuecomment-488387659
-        gamma = self.gamma  # Make code faster.
         intrinsic_returns = [[] for _ in range(self.n_workers)]
         for worker in range(self.n_workers):
             rewems = 0
             for step in reversed(range(self.worker_steps)):
-                rewems = rewems * gamma + self.rnd_rewards[worker][step]
+                rewems = rewems * self.gamma + self.rnd_rewards[worker][step]
                 intrinsic_returns[worker].insert(0, rewems)
         self.rnd_reward_rms.update(np.ravel(intrinsic_returns).reshape(-1, 1))
 
         self.rnd_rewards = self.rnd_rewards / (self.rnd_reward_rms.var ** 0.5)
-
-
-# TODO 暂存
-
-
-class RunningMeanStd:
-    # https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Parallel_algorithm
-    # -> It's indeed batch normalization. :D
-    def __init__(self, epsilon=1e-4, shape=()):
-        self.mean = np.zeros(shape, 'float64')
-        self.var = np.ones(shape, 'float64')
-        self.count = epsilon
-
-    def update(self, x):
-        batch_mean = np.mean(x, axis=0)
-        batch_var = np.var(x, axis=0)
-        batch_count = x.shape[0]
-        self.update_from_moments(batch_mean, batch_var, batch_count)
-
-    def update_from_moments(self, batch_mean, batch_var, batch_count):
-        self.mean, self.var, self.count = RunningMeanStd.update_mean_var_count_from_moments(
-            self.mean, self.var, self.count, batch_mean, batch_var, batch_count)
-
-    @staticmethod
-    def update_mean_var_count_from_moments(mean, var, count, batch_mean, batch_var, batch_count):
-        delta = batch_mean - mean
-        tot_count = count + batch_count
-
-        new_mean = mean + delta * batch_count / tot_count
-        m_a = var * count
-        m_b = batch_var * batch_count
-        M2 = m_a + m_b + np.square(delta) * count * batch_count / tot_count
-        new_var = M2 / tot_count
-        new_count = tot_count
-
-        return new_mean, new_var, new_count

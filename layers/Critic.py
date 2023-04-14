@@ -14,7 +14,6 @@ class Critic(nn.Module):
             output_size {int} -- num of value
         '''
         super(Critic, self).__init__()
-        self.config = config
         conf_train = config['train']
         self.use_rnd = conf_train['use_rnd']
 
@@ -33,13 +32,14 @@ class Critic(nn.Module):
         '''
         Args:
             x {torch.Tensor} --- hight level feature
+        Returns
+            {tensor} -- value
+            {tensor} -- rnd value
         '''
         x = self.critic_hidden(feature)
-        value = self.critic(x)
-        value = value.squeeze(-1)
+        value = self.critic(x).squeeze(-1)
         if self.use_rnd:
-            rnd_value = self.rnd_critic(x)
-            rnd_value = rnd_value.squeeze(-1)
+            rnd_value = self.rnd_critic(x).squeeze(-1)
         else:
             rnd_value = None
         return value, rnd_value
@@ -57,7 +57,6 @@ class MultiCritic(nn.Module):
             task_num {int} -- num of task
         '''
         super(MultiCritic, self).__init__()
-        self.config = config
         self.m_critic = nn.ModuleDict(
             [[str(i), nn.Sequential(
                 nn.Linear(input_size, input_size),

@@ -1,6 +1,7 @@
+from typing import Optional
+
 import numpy as np
 from gymnasium.envs.mujoco.half_cheetah_v4 import HalfCheetahEnv
-from typing import Optional
 
 
 class HalfCheetahBace(HalfCheetahEnv):

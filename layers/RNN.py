@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
-from layers.StateNet import weights_init_
+
+from utils.weights_init import weights_init_
 
 
 class RNN(nn.Module):
@@ -13,11 +14,9 @@ class RNN(nn.Module):
             input_size {int} -- input feature size
         '''
         super(RNN, self).__init__()
-        self.config = config
-        self.conf_recurrence = config['recurrence']
-        self.use_lstm = self.conf_recurrence['use_lstm']
-        self.layer_type = self.conf_recurrence['layer_type']
-        self.hidden_state_size = self.conf_recurrence['hidden_state_size']
+        conf_recurrence = config['recurrence']
+        self.layer_type = conf_recurrence['layer_type']
+        self.hidden_state_size = conf_recurrence['hidden_state_size']
         if self.layer_type == 'gru':
             self.rnn = nn.GRU(input_size,
                               self.hidden_state_size, batch_first=True)

@@ -11,20 +11,18 @@ class Actor(nn.Module):
     def __init__(self, config: dict, action_space: Box) -> None:
         '''
         Args:
-            action_space {Box} -- action space
             config {dict} -- config dictionary
+            action_space {Box} -- action space
         '''
         super(Actor, self).__init__()
-        self.config = config
-        self.conf_train = config['train']
-        self.action_type = self.conf_train['action_type']
-
-        if self.action_type == 'continuous':
-            self.action_dim = action_space.shape[0]
-            self.action_max = max(action_space.high)
-        elif self.action_type == 'discrete':
-            self.action_dim = action_space
-        else:
+        conf_train = config['train']
+        self.action_type = conf_train['action_type']
+        action_props = {
+            'continuous': (action_space.shape[0], max(action_space.high)),
+            'discrete': (action_space, None)
+        }
+        self.action_dim, self.action_max = action_props.get(self.action_type, None)
+        if not self.action_dim:
             raise NotImplementedError(self.action_type)
 
     def forward(self, x: torch.Tensor):

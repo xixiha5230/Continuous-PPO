@@ -1,7 +1,8 @@
 import torch
 import torch.nn as nn
-import numpy as np
-from layers.StateNet import AtariImage, weights_init_
+
+from layers.StateNet import AtariImage
+from utils.weights_init import weights_init_
 
 
 class RND(nn.Module):
@@ -24,6 +25,8 @@ class RND(nn.Module):
                 nn.Linear(_dumy.output_size, 512)
             )
             self.target_net.apply(weights_init_)
+            for p in self.target_net.parameters():
+                p.requires_grad = False
 
             self.predict_net = nn.Sequential(
                 AtariImage(obs_shape),
