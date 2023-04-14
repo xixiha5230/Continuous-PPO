@@ -49,7 +49,8 @@ class ActorCritic(nn.Module):
         if self.use_rnd:
             # TODO mybe can rnd rnn feature
             # Only rnd the first dimension of the observation space !!!
-            self.rnd = RND(config, obs_space[0].shape)
+            self.rnd = RND(config, obs_space[0].shape if isinstance(
+                obs_space, (gym_spaces.Tuple, gymnasium_spaces.Tuple)) else obs_space.shape)
 
         # Task net
         if self.multi_task:

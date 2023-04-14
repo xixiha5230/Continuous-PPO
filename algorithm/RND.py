@@ -24,9 +24,6 @@ class RND(nn.Module):
                 AtariImage(obs_shape),
                 nn.Linear(_dumy.output_size, 512)
             )
-            self.target_net.apply(weights_init_)
-            for p in self.target_net.parameters():
-                p.requires_grad = False
 
             self.predict_net = nn.Sequential(
                 AtariImage(obs_shape),
@@ -36,18 +33,34 @@ class RND(nn.Module):
                 nn.ReLU(),
                 nn.Linear(512, 512)
             )
-            self.predict_net.apply(weights_init_)
 
         elif len(obs_shape) == 1:
-            raise NotImplementedError('vector RND NotImplemented !')
+            self.target_net = nn.Sequential(
+                nn.Linear(obs_shape[0], 512),
+                nn.ReLU(),
+                nn.Linear(512, 512)
+            )
+            self.predict_net = nn.Sequential(
+                nn.Linear(obs_shape[0], 512),
+                nn.ReLU(),
+                nn.Linear(512, 512),
+                nn.ReLU(),
+                nn.Linear(512, 512),
+                nn.ReLU(),
+                nn.Linear(512, 512)
+            )
         else:
             raise NotImplementedError(obs_shape)
+
+        for p in self.target_net.parameters():
+            p.requires_grad = False
+        self.target_net.apply(weights_init_)
+        self.predict_net.apply(weights_init_)
 
     def calculate_rnd_loss(self, next_state):
         encoded_target_features = self.forward_target(next_state)
         encoded_predictor_features = self.forward_predict(next_state)
         loss = (encoded_predictor_features - encoded_target_features).pow(2).mean(-1)
-        # TODO mask的作用
         predictor_proportion = 32. / self.n_workers
         mask = torch.rand(loss.size()).to(self.device)
         mask = (mask < predictor_proportion).float()

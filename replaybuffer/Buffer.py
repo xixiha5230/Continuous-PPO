@@ -74,7 +74,7 @@ class Buffer():
         # RDN rnd_next_obs && rnd_values && rnd_rewards && rnd_advantages
         if self.use_rnd:
             # only rnd the obs on first dim!!!
-            obs_0 = observation_space[0].shape if isinstance(
+            obs_0 = observation_space[0] if isinstance(
                 observation_space, (gym_spaces.Tuple, gymnasium_spaces.Tuple)) else observation_space
             self.rnd_next_obs = torch.zeros((self.n_workers, self.worker_steps) + obs_0.shape).to(self.device)
             self.rnd_values = torch.zeros((self.n_workers, self.worker_steps)).to(self.device)
