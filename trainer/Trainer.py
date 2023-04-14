@@ -521,6 +521,7 @@ class Trainer:
         self.resume = self.conf_train.setdefault('resume', False)
         self.multi_task = self.conf_train.setdefault('multi_task', False)
         self.use_rnd = self.conf_train.setdefault('use_rnd', False)
+        self.rnd_rate = self.conf_train.setdefault('rnd_rate', 0.5)
 
         # PPO hyperparameters
         conf_ppo = {}

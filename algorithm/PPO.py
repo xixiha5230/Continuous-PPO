@@ -28,6 +28,7 @@ class PPO:
         self.device = conf_train['device']
         self.multi_task = conf_train['multi_task']
         self.use_rnd = conf_train['use_rnd']
+        self.rnd_rate = conf_train['rnd_rate']
 
         self.policy = ActorCritic(obs_space, action_space, config).to(self.device)
         if self.multi_task:
@@ -169,9 +170,7 @@ class PPO:
             -1) if self.action_type == 'continuous' else normalized_advantage
         if self.use_rnd:
             normalized_rnd_advantage = mini_batch['normalized_rnd_advantages']
-            # TODO 比例参数化
-            rnd_rate = 0.5
-            normalized_advantage = normalized_advantage + rnd_rate * normalized_rnd_advantage
+            normalized_advantage = normalized_advantage + self.rnd_rate * normalized_rnd_advantage
 
         # Policy loss
         ratio = torch.exp(new_logprobs - mini_batch['log_probs'])
