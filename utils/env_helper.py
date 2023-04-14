@@ -9,6 +9,7 @@ from envs.MinigridMemory import Minigrid
 from envs.MountainCar import MountainCar
 from envs.UnityMultitask import UnityMultitask
 from envs.Walker2d import Walker2d
+from envs.Pyramids import Pyramids
 
 
 def create_env(conf: dict, id: int = 0, render_mode=None, time_scale=2):
@@ -58,5 +59,7 @@ def create_env(conf: dict, id: int = 0, render_mode=None, time_scale=2):
         return Minigrid(env_name, render_mode)
     elif env_name == 'UnityMultitask':
         return UnityMultitask(task, id, time_scale)
+    elif env_name == 'Pyramids':
+        return Pyramids(f'./UnityEnvs/{env_name}', id, time_scale)
     else:
         raise f'Unknow env: {env_name}'
