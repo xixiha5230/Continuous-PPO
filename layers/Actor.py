@@ -17,12 +17,11 @@ class Actor(nn.Module):
         super(Actor, self).__init__()
         conf_train = config['train']
         self.action_type = conf_train['action_type']
-        action_props = {
-            'continuous': (action_space.shape[0], max(action_space.high)),
-            'discrete': (action_space, None)
-        }
-        self.action_dim, self.action_max = action_props.get(self.action_type, None)
-        if not self.action_dim:
+        if self.action_type == 'continuous':
+            self.action_dim, self.action_max = (action_space.shape[0], max(action_space.high))
+        elif self.action_type == 'discrete':
+            self.action_dim = action_space
+        else:
             raise NotImplementedError(self.action_type)
 
     def forward(self, x: torch.Tensor):
