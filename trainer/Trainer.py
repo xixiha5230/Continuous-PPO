@@ -139,7 +139,7 @@ class Trainer:
 
             # Sample training data
             try:
-                sampled_episode_info, mean_rnd_reward = self._sample_training_data()
+                sampled_episode_info, mean_rnd_reward, scaled_rewards = self._sample_training_data()
             except Exception as e:
                 if self.stop_signal:
                     break
@@ -205,6 +205,7 @@ class Trainer:
                 self.writer.add_scalar('Train/rnd_reward_mean', mean_rnd_reward, self.update)
             if(len(episode_result) > 0):
                 self.writer.add_scalar('Train/reward_mean', episode_result['reward_mean'], self.update)
+                self.writer.add_scalar('Train/scaled_reward', np.mean(scaled_rewards), self.update)
                 self.writer.add_scalar('Train/reward_std', episode_result['reward_std'], self.update)
                 self.writer.add_scalar('Train/length_mean', episode_result['length_mean'], self.update)
                 self.writer.add_scalar('Train/length_std', episode_result['length_std'], self.update)
@@ -250,6 +251,8 @@ class Trainer:
             {list} -- list of results of completed episodes.
         '''
         episode_infos = []
+        scaled_rewards = []
+        episode_reward = [[]] * self.num_workers
         # Sample actions from the model and collect experiences for training
         for t in range(self.worker_steps):
             # Gradients can be omitted for sampling training data
@@ -303,12 +306,14 @@ class Trainer:
                         self.buffer[i].actions[:, t] = torch.index_select(action_t, 0, m)
                         self.buffer[i].log_probs[:, t] = torch.index_select(action_logprob_t, 0, m)
                         self.buffer[i].values[:, t] = torch.index_select(value_t, 0, m)
-                        self.buffer[i].rnd_values[:, t] = torch.index_select(rnd_value_t, 0, m)
+                        if self.use_rnd:
+                            self.buffer[i].rnd_values[:, t] = torch.index_select(rnd_value_t, 0, m)
                 else:
                     self.buffer.actions[:, t] = action_t
                     self.buffer.log_probs[:, t] = action_logprob_t
                     self.buffer.values[:, t] = value_t
-                    self.buffer.rnd_values[:, t] = rnd_value_t
+                    if self.use_rnd:
+                        self.buffer.rnd_values[:, t] = rnd_value_t
             # restore action order
             if self.multi_task:
                 restored_action_t = torch.index_select(action_t, 0, self.original_order)
@@ -324,9 +329,11 @@ class Trainer:
                     self.buffer[self.indices[w]].rewards[w // self.task_num, t] = self.reward_scaling[w](
                         reward_w) if self.use_reward_scaling else reward_w
                     self.buffer[self.indices[w]].dones[w // self.task_num, t] = done_w
+                    episode_reward[w].append(self.buffer[self.indices[w]].rewards[w // self.task_num, t])
                 else:
                     self.buffer.rewards[w, t] = self.reward_scaling[w](reward_w) if self.use_reward_scaling else reward_w
                     self.buffer.dones[w, t] = done_w
+                    episode_reward[w].append(self.buffer.rewards[w, t])
                 if info:
                     # Store the information of the completed episode (e.g. total reward, episode length)
                     episode_infos.append(info)
@@ -353,6 +360,8 @@ class Trainer:
                     # reset reward scaling
                     if self.use_reward_scaling:
                         self.reward_scaling[w].reset()
+                    scaled_rewards.append(np.mean(episode_reward[w]))
+                    episode_reward[w] = []
                 # Store latest observations
                 self.obs[w] = obs_w
 
@@ -395,7 +404,7 @@ class Trainer:
         else:
             _, _, last_value_t, last_rnd_value_t, _ = self.ppo_agent.select_action(state_t, self.recurrent_cell)
             self.buffer.calc_advantages(last_value_t, last_rnd_value_t)
-        return episode_infos, mean_rnd_reward
+        return episode_infos, mean_rnd_reward, scaled_rewards
 
     def _multi_task_select_action(self, reshaped_state, buffer_mask):
         action_t = None
