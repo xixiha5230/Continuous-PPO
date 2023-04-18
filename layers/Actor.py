@@ -4,19 +4,21 @@ import torch.nn as nn
 from gymnasium.spaces import Box
 from torch.distributions import Categorical, Normal
 
+from utils.ConfigHelper import ConfigHelper
+
 
 class Actor(nn.Module):
     ''' Actor base Module '''
 
-    def __init__(self, config: dict, action_space: Box) -> None:
+    def __init__(self, config: ConfigHelper, action_space: Box) -> None:
         '''
         Args:
             config {dict} -- config dictionary
             action_space {Box} -- action space
         '''
         super(Actor, self).__init__()
-        conf_train = config['train']
-        self.action_type = conf_train['action_type']
+        self.action_type = config.action_type
+
         if self.action_type == 'continuous':
             self.action_dim, self.action_max = (action_space.shape[0], max(action_space.high))
         elif self.action_type == 'discrete':
@@ -35,7 +37,7 @@ class Actor(nn.Module):
 class GaussianActor(Actor):
     ''' Gaussian Actor Module '''
 
-    def __init__(self, config: dict, input_size: int, action_space: tuple) -> None:
+    def __init__(self, config: ConfigHelper, input_size: int, action_space: tuple) -> None:
         '''
         Args:
             config {dict} -- config dictionary
@@ -89,7 +91,7 @@ class GaussianActor(Actor):
 class MultiGaussianActor(Actor):
     ''' Gaussian Multiple Actor Module '''
 
-    def __init__(self, config: dict, input_size: int, action_space: tuple, task_num: int) -> None:
+    def __init__(self, config: ConfigHelper, input_size: int, action_space: tuple, task_num: int) -> None:
         '''
         Args:
             config {dict} -- config dictionary

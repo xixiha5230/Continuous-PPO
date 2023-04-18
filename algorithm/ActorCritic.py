@@ -10,12 +10,13 @@ from layers.Hidden import HiddenNet
 from layers.RNN import RNN
 from layers.StateNet import ObsNetImage, ObsNetUGV
 from layers.TaskNet import TaskNet, TaskPredictNet
+from utils.ConfigHelper import ConfigHelper
 
 
 class ActorCritic(nn.Module):
     ''' Actor Critic Module '''
 
-    def __init__(self, obs_space, action_space, config: dict):
+    def __init__(self, obs_space, action_space, config: ConfigHelper):
         '''
         Args:
             obs_space {tuple} -- observation space
@@ -23,12 +24,10 @@ class ActorCritic(nn.Module):
             config {dict} -- config dictionary
         '''
         super(ActorCritic, self).__init__()
-        conf_train = config['train']
-        self.hidden_layer_size = conf_train['hidden_layer_size']
-        self.multi_task = conf_train['multi_task']
-        self.use_rnd = conf_train['use_rnd']
-        conf_recurrence = config['recurrence']
-        self.use_lstm = conf_recurrence['use_lstm']
+        self.hidden_layer_size = config.hidden_layer_size
+        self.multi_task = config.multi_task
+        self.use_rnd = config.use_rnd
+        self.use_lstm = config.use_lstm
         self.obs_space = obs_space
 
         # Observation feature extraction
@@ -54,7 +53,7 @@ class ActorCritic(nn.Module):
 
         # Task net
         if self.multi_task:
-            self.task_num = len(config.get('task', []))
+            self.task_num = config.task_num
             assert self.task_num > 0
             self.task_net = TaskNet(self.obs_space[-1].shape[0], 16)
             self.task_feature_size = self.task_net.output_size

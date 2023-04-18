@@ -6,25 +6,20 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     '--config_file',
     type=str,
-    default='configs/CarSearch.yaml',
-    # default='configs/LunarLander-v2.yaml',
+    default='PPO_logs/MountainCar-v0/rnd/run_0/config.yaml',
+    # default='configs/MountainCar-v0.yaml',
     help='The config file',
-)
-parser.add_argument(
-    '--exp_name',
-    type=str,
-    default='test',
-    help='The experiment name',
 )
 
 # TODO
+# 任务表征网络的必要性
 # 优化整理代码
 if __name__ == '__main__':
     args = parser.parse_args()
     for _ in range(10):
-        trainer = Trainer(args.config_file, args.exp_name)
-        trainer.run()
-        if trainer.stop_signal:
-            break
-        else:
+        trainer = Trainer(args.config_file)
+        try:
+            trainer.run()
             trainer.close()
+        except:
+            break

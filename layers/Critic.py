@@ -2,11 +2,13 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+from utils.ConfigHelper import ConfigHelper
+
 
 class Critic(nn.Module):
     ''' Critic Module '''
 
-    def __init__(self, config: dict, input_size: int, output_size: int = 1) -> None:
+    def __init__(self, config: ConfigHelper, input_size: int, output_size: int = 1) -> None:
         '''
         Args:
             config {dict} -- config dictionary
@@ -14,8 +16,7 @@ class Critic(nn.Module):
             output_size {int} -- num of value
         '''
         super(Critic, self).__init__()
-        conf_train = config['train']
-        self.use_rnd = conf_train['use_rnd']
+        self.use_rnd = config.use_rnd
 
         self.critic_hidden = nn.Sequential(
             nn.Linear(input_size, input_size),
@@ -48,7 +49,7 @@ class Critic(nn.Module):
 class MultiCritic(nn.Module):
     ''' Multiple Critic Module '''
 
-    def __init__(self, config: dict, input_size: int, output_size: int = 1,  task_num: int = 1) -> None:
+    def __init__(self, config: ConfigHelper, input_size: int, output_size: int = 1,  task_num: int = 1) -> None:
         '''
         Args:
             config {dict} -- config dictionary

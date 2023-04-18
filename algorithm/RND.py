@@ -2,21 +2,19 @@ import torch
 import torch.nn as nn
 
 from layers.StateNet import AtariImage
+from utils.ConfigHelper import ConfigHelper
 from utils.weights_init import weights_init_
 
 
 class RND(nn.Module):
-    def __init__(self, config: dict, obs_shape: tuple) -> None:
+    def __init__(self, config: ConfigHelper, obs_shape: tuple) -> None:
         super(RND, self).__init__()
-        self.config = config
-        conf_train = config['train']
-        self.device = conf_train['device']
-        conf_worker = config['worker']
-        self.n_workers = conf_worker['num_workers']
-        self.worker_steps = conf_worker['worker_steps']
-        conf_ppo = config['ppo']
-        self.gamma = conf_ppo['gamma']
-        self.lamda = conf_ppo['lamda']
+        self.device = config.device
+        self.n_workers = config.num_workers
+        self.worker_steps = config.worker_steps
+        self.gamma = config.gamma
+        self.lamda = config.lamda
+        
         # only RND image or vector obs
         if len(obs_shape) == 3:
             _dumy = AtariImage(obs_shape)

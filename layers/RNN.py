@@ -1,22 +1,22 @@
 import torch
 import torch.nn as nn
 
+from utils.ConfigHelper import ConfigHelper
 from utils.weights_init import weights_init_
 
 
 class RNN(nn.Module):
     ''' RNN Module '''
 
-    def __init__(self, config: dict, input_size: int) -> None:
+    def __init__(self, config: ConfigHelper, input_size: int) -> None:
         '''
         Args:
             config {dict} -- config dictionary
             input_size {int} -- input feature size
         '''
         super(RNN, self).__init__()
-        conf_recurrence = config['recurrence']
-        self.layer_type = conf_recurrence['layer_type']
-        self.hidden_state_size = conf_recurrence['hidden_state_size']
+        self.layer_type = config.layer_type
+        self.hidden_state_size = config.hidden_state_size
         if self.layer_type == 'gru':
             self.rnn = nn.GRU(input_size,
                               self.hidden_state_size, batch_first=True)

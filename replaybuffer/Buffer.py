@@ -4,45 +4,41 @@ from gym import spaces as gym_spaces
 from gymnasium import spaces as gymnasium_spaces
 
 from normalization.RNDRunningMeanStd import RNDRunningMeanStd
+from utils.ConfigHelper import ConfigHelper
 
 
 class Buffer():
     '''The buffer stores and prepares the training data. It supports recurrent policies. '''
 
-    def __init__(self, config: dict, observation_space: gymnasium_spaces, action_space: gymnasium_spaces) -> None:
+    def __init__(self, config: ConfigHelper, observation_space: gymnasium_spaces, action_space: gymnasium_spaces) -> None:
         '''
         Args:
             config {dict} -- Configuration and hyperparameters of the environment, trainer and model.
             observation_space {gymnasium.spaces} -- The observation space of the agent
             action_space {gymnasium.spaces} -- The action space of the agent
         '''
-        conf_train = config['train']
-        self.device = conf_train['device']
-        self.n_mini_batches = conf_train['num_mini_batch']
-        self.action_type = conf_train['action_type']
-        self.multi_task = conf_train['multi_task']
-        self.use_rnd = conf_train['use_rnd']
+        self.device = config.device
+        self.num_mini_batch = config.num_mini_batch
+        self.action_type = config.action_type
+        self.multi_task = config.multi_task
+        self.use_rnd = config.use_rnd
 
-        conf_recurrence = config['recurrence']
-        hidden_state_size = conf_recurrence['hidden_state_size']
-        self.layer_type = conf_recurrence['layer_type']
-        self.sequence_length = conf_recurrence['sequence_length']
+        hidden_state_size = config.hidden_state_size
+        self.layer_type = config.layer_type
+        self.sequence_length = config.sequence_length
 
-        worker = config['worker']
         if self.multi_task:
-            self.task_num = len(config.get('task', []))
-            assert self.task_num > 0
-            self.n_workers = worker['num_workers'] // self.task_num
+            self.task_num = config.task_num
+            self.n_workers = config.num_workers // self.task_num
         else:
-            self.n_workers = worker['num_workers']
-        self.worker_steps = worker['worker_steps']
+            self.n_workers = config.num_workers
+        self.worker_steps = config.worker_steps
 
-        conf_ppo = config['ppo']
-        self.gamma = conf_ppo['gamma']
-        self.lamda = conf_ppo['lamda']
+        self.gamma = config.gamma
+        self.lamda = config.lamda
 
         self.batch_size = self.n_workers * self.worker_steps
-        self.mini_batch_size = self.batch_size // self.n_mini_batches
+        self.mini_batch_size = self.batch_size // self.num_mini_batch
         self.actual_sequence_length = 0
         # Reward
         self.rewards = np.zeros((self.n_workers, self.worker_steps), dtype=np.float32)
@@ -250,10 +246,10 @@ class Buffer():
             self.samples_flat['normalized_rnd_advantages'] = (self.samples_flat['rnd_advantages'] - self.samples_flat['rnd_advantages'].mean()
                                                               ) / (self.samples_flat['rnd_advantages'].std() + 1e-8)
         # Determine the number of sequences per mini batch
-        num_sequences_per_batch = self.num_sequences // self.n_mini_batches
+        num_sequences_per_batch = self.num_sequences // self.num_mini_batch
         # Arrange a list that determines the sequence count for each mini batch
-        num_sequences_per_batch = [num_sequences_per_batch] * self.n_mini_batches
-        remainder = self.num_sequences % self.n_mini_batches
+        num_sequences_per_batch = [num_sequences_per_batch] * self.num_mini_batch
+        remainder = self.num_sequences % self.num_mini_batch
         for i in range(remainder):
             # Add the remainder if the sequence count and the number of mini batches do not share a common divider
             num_sequences_per_batch[i] += 1

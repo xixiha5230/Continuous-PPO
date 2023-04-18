@@ -2,38 +2,35 @@ import numpy as np
 import torch
 
 from algorithm.ActorCritic import ActorCritic
+from utils.ConfigHelper import ConfigHelper
 
 
 class PPO:
     '''PPO algorithm'''
 
-    def __init__(self, obs_space: tuple, action_space: tuple, config: dict):
+    def __init__(self, obs_space: tuple, action_space: tuple, config: ConfigHelper):
         '''
         Args:
             obs_space {tuple} -- observation space
             action_space {tuple} -- action space
             config {dict} -- config dictionary
         '''
+        self.use_lstm = config.use_lstm
+        self.layer_type = config.layer_type
+        self.hidden_state_size = config.hidden_state_size
 
-        conf_recurrence = config['recurrence']
-        self.use_lstm = conf_recurrence['use_lstm']
-        self.layer_type = conf_recurrence['layer_type']
-        self.hidden_state_size = conf_recurrence['hidden_state_size']
+        self.vf_loss_coeff = config.vf_loss_coeff
 
-        conf_ppo = config['ppo']
-        self.vf_loss_coeff = conf_ppo['vf_loss_coeff']
-
-        conf_train = config['train']
-        self.action_type = conf_train['action_type']
-        self.device = conf_train['device']
-        self.multi_task = conf_train['multi_task']
-        self.use_rnd = conf_train['use_rnd']
-        self.rnd_rate = conf_train['rnd_rate']
+        self.action_type = config.action_type
+        self.device = config.device
+        self.multi_task = config.multi_task
+        self.use_rnd = config.use_rnd
+        self.rnd_rate = config.rnd_rate
 
         self.policy = ActorCritic(obs_space, action_space, config).to(self.device)
         if self.multi_task:
             self.task_predict_loss = torch.nn.CrossEntropyLoss()
-        self.optimizer = torch.optim.AdamW(self.policy.parameters(), lr=conf_ppo['lr_schedule']['init'], eps=1e-5)
+        self.optimizer = torch.optim.AdamW(self.policy.parameters(), lr=config.lr_schedule['init'], eps=1e-5)
 
     def eval_select_action(self, obs: torch.Tensor, hidden_in: torch.Tensor = None, module_index: int = -1):
         ''' Only use for test no training: select action based on state and hidden_in
@@ -230,12 +227,11 @@ class PPO:
             {tuple} -- Depending on the used recurrent layer type, just hidden states (gru) or both hidden states and
                      cell states are returned using initial values.
         '''
-        hidden_state_size = self.hidden_state_size
-        hxs = torch.zeros((num_sequences), hidden_state_size, dtype=torch.float32, device=self.device).unsqueeze(0)
+        hxs = torch.zeros((num_sequences), self.hidden_state_size, dtype=torch.float32, device=self.device).unsqueeze(0)
         if self.layer_type == 'gru':
             return hxs
         elif self.layer_type == 'lstm':
-            cxs = torch.zeros((num_sequences), hidden_state_size, dtype=torch.float32, device=self.device).unsqueeze(0)
+            cxs = torch.zeros((num_sequences), self.hidden_state_size, dtype=torch.float32, device=self.device).unsqueeze(0)
             return hxs, cxs
         else:
             raise NotImplementedError(self.layer_type)

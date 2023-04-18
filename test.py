@@ -15,7 +15,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     '--config',
     type=str,
-    default='PPO_logs/UnityMultitask/rnd_evo/run_1/test.yaml',
+    default='PPO_logs/MountainCar-v0/rnd/run_4/config.yaml',
     help='The config file',
 )
 parser.add_argument(
@@ -63,7 +63,7 @@ def test(args):
     # load latest checkpoint
     log_dir = f'./PPO_logs/{env_name}/{exp_name}/run_{run_num}'
     latest_checkpoint = max(glob.glob(f'{log_dir}/checkpoints/*'), key=os.path.getctime)
-    # latest_checkpoint = f'{log_dir}/checkpoints/290.pth'
+    # latest_checkpoint = f'{log_dir}/checkpoints/230.pth'
     print(f'resume from {latest_checkpoint}')
     ppo_agent.load(latest_checkpoint)
 

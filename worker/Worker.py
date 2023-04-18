@@ -2,10 +2,11 @@ import multiprocessing
 import multiprocessing.connection
 import sys
 
+from utils.ConfigHelper import ConfigHelper
 from utils.env_helper import create_env
 
 
-def worker_process(remote: multiprocessing.connection.Connection, conf: dict, id: int) -> None:
+def worker_process(remote: multiprocessing.connection.Connection, conf: ConfigHelper, id: int) -> None:
     '''Executes the threaded interface to the environment.
 
     Args:
@@ -45,7 +46,7 @@ class Worker:
     child: multiprocessing.connection.Connection
     process: multiprocessing.Process
 
-    def __init__(self, conf: dict, id: int):
+    def __init__(self, conf: ConfigHelper, id: int):
         '''
         Args:
             env_name (str) -- Name of the to be instantiated environment

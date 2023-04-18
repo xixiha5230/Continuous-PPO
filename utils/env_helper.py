@@ -10,9 +10,10 @@ from envs.MountainCar import MountainCar
 from envs.UnityMultitask import UnityMultitask
 from envs.Walker2d import Walker2d
 from envs.Pyramids import Pyramids
+from utils.ConfigHelper import ConfigHelper
 
 
-def create_env(conf: dict, id: int = 0, render_mode=None, time_scale=2):
+def create_env(conf: ConfigHelper, id: int = 0, render_mode=None, time_scale=2):
     '''Initializes an environment based on the provided environment name.
 
     Args:
@@ -23,9 +24,9 @@ def create_env(conf: dict, id: int = 0, render_mode=None, time_scale=2):
     Returns:
         {env}: Returns the selected environment instance.
     '''
-    env_name = conf['train']['env_name']
-    action_type = conf['train']['action_type']
-    task = conf.get('task', None)
+    env_name = conf.env_name
+    action_type = conf.action_type
+    task = conf.task
     if env_name == 'LunarLander-v2':
         return LunarLander(action_type=action_type, render_mode=render_mode)
     elif env_name == 'BipedalWalker-v3':
