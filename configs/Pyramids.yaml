@@ -27,10 +27,10 @@ train:
   K_epochs: 4
   device: cuda
   env_name: Pyramids
-  exp_name: gru
+  exp_name: gru_rnd_5
   action_type: discrete
   hidden_layer_size: 512
-  max_updates: 500
+  max_updates: 2000
   num_mini_batch: 8
   random_seed: 0
   save_model_freq: 10
