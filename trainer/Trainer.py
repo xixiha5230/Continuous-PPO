@@ -61,7 +61,7 @@ class Trainer:
 
         print('Step 5: Init buffer')
         if self.conf.multi_task:
-            self.buffer = [Buffer(self.conf, self.obs_space, self.action_space)] * self.conf.task_num
+            self.buffer = [Buffer(self.conf, self.obs_space, self.action_space) for _ in range(self.conf.task_num)]
         else:
             self.buffer = Buffer(self.conf, self.obs_space, self.action_space)
 
@@ -186,7 +186,7 @@ class Trainer:
     def _reset_env(self):
         ''' reset all environment in workers '''
         if isinstance(self.obs_space, (gym_spaces.Tuple, gymnasium_spaces.Tuple)):
-            obs = [[np.zeros(t.shape, dtype=np.float32) for t in self.obs_space]] * self.conf.num_workers
+            obs = [[np.zeros(t.shape, dtype=np.float32) for t in self.obs_space] for _ in range(self.conf.num_workers)]
         else:
             obs = np.zeros((self.conf.num_workers,) + self.obs_space.shape, dtype=np.float32)
         # reset env
@@ -210,7 +210,7 @@ class Trainer:
         '''
         episode_infos = []
         scaled_rewards = []
-        episode_reward = [[]] * self.conf.num_workers
+        episode_reward = [[] for _ in range(self.conf.num_workers)]
         # Sample actions from the model and collect experiences for training
         for t in range(self.conf.worker_steps):
             # Gradients can be omitted for sampling training data

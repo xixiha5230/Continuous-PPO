@@ -56,7 +56,7 @@ class Buffer():
         # Observation
         if isinstance(observation_space,  (gym_spaces.Tuple, gymnasium_spaces.Tuple)):
             self.obs = [[torch.zeros((self.n_workers,) + t.shape).to(self.device)
-                        for t in observation_space]] * self.worker_steps
+                        for t in observation_space] for _ in range(self.worker_steps)]
         else:
             self.obs = torch.zeros((self.n_workers, self.worker_steps) + observation_space.shape).to(self.device)
         # hxs & cxs
