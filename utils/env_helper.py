@@ -31,7 +31,7 @@ def create_env(conf: dict, id: int = 0, render_mode=None, time_scale=2):
     elif env_name == 'BipedalWalker-v3':
         raise NotImplementedError()
     elif env_name == 'MountainCar-v0' or env_name == 'MountainCarContinuous-v0':
-        return MountainCar(env_name)
+        return MountainCar(env_name, render_mode=render_mode)
     elif env_name == 'CartPole-v1' or env_name == 'CartPole-v0':
         return CartPole(env_name, render_mode=render_mode)
     elif env_name == 'CarRacing-v1':
