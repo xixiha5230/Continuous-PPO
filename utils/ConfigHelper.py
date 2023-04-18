@@ -40,7 +40,7 @@ class ConfigHelper:
         self.resume = conf_train.setdefault('resume', False)
         self.run_num = conf_train.setdefault('run_num', 0)
         self.multi_task = conf_train.setdefault('multi_task', False)
-        self.task = conf_train.get('task', [])
+        self.task = self.conf.get('task', [])
         self.task_num = len(self.task)
         if self.multi_task:
             assert self.task_num > 0
