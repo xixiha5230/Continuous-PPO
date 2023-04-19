@@ -57,7 +57,7 @@ class GaussianActor(Actor):
             nn.init.orthogonal_(self.mu[2].weight, np.sqrt(0.01))
             self.sigma = nn.Sequential(
                 nn.Linear(input_size, self.action_dim),
-                nn.Softmax(dim=-1)
+                nn.Softplus()
             )
             nn.init.orthogonal_(self.sigma[0].weight, np.sqrt(0.01))
         elif self.action_type == 'discrete':
