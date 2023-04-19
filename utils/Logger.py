@@ -10,8 +10,8 @@ class Logger:
     def __init__(self, env_name, exp_name, run_num, resume) -> None:
         base_log_dir = os.path.join('PPO_logs', env_name, exp_name)
         os.makedirs(base_log_dir, exist_ok=True)
-        run_num = len(next(os.walk(base_log_dir))[1]) if not resume else run_num
-        self.run_log_dir = os.path.join(base_log_dir, f'run_{run_num}')
+        self.run_num = len(next(os.walk(base_log_dir))[1]) if not resume else run_num
+        self.run_log_dir = os.path.join(base_log_dir, f'run_{self.run_num}')
         os.makedirs(self.run_log_dir, exist_ok=True)
 
         reward_file = os.path.join(self.run_log_dir, 'reward.csv')
@@ -26,9 +26,11 @@ class Logger:
         os.makedirs(self.checkpoint_path, exist_ok=True)
         print('save checkpoint path : ' + self.checkpoint_path)
 
-    def write_reward(self, x):
-        self.reward_writter.write(x)
-        self.reward_writter.flush()
+    def write_reward(self, update, i_episode, episode_result):
+        if len(episode_result) > 0:
+            self.reward_writter.write(f'{update},\t{i_episode},\t{episode_result["reward_mean"]}\n')
+            self.reward_writter.flush()
+            print(f'update: {update}\t episode: {i_episode}\t reward: {episode_result["reward_mean"]}')
 
     @property
     def latest_checkpoint(self):

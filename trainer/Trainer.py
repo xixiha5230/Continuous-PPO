@@ -81,6 +81,7 @@ class Trainer:
 
         print('Step 10: Set log files')
         self.logger = Logger(self.conf.env_name, self.conf.exp_name, self.conf.run_num, self.conf.resume)
+        self.conf.run_num = self.logger.run_num
 
         print('Step 11: Check resume')
         if self.conf.resume:
@@ -168,8 +169,7 @@ class Trainer:
                  ),
                 self.conf.update
             )
-            self.logger.write_reward(f'{self.conf.update},\t{self.conf.i_episode},\t{episode_result["reward_mean"]}\n')
-            print(f'update: {self.conf.update}\t episode: {self.conf.i_episode}\t reward: {episode_result["reward_mean"]}')
+            self.logger.write_reward(self.conf.update, self.conf.i_episode, episode_result)
 
             # save model weights
             if self.conf.update != 0 and self.conf.update % self.conf.save_model_freq == 0:
