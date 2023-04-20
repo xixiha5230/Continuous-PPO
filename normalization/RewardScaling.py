@@ -25,7 +25,7 @@ class RewardScaling:
         self.R = self.gamma * self.R + x
         self.running_ms.update(self.R)
         # Only divided std
-        x = x / (self.running_ms.std + 1e-8)
+        x = x / (self.running_ms.var + 1e-8)
         return x
 
     def reset(self):
