@@ -15,7 +15,7 @@ class RewardScaling:
         self.shape = shape
         self.gamma = gamma
         self.running_ms = RunningMeanStd(shape=self.shape)
-        self.R = np.zeros(self.shape)
+        self.R = np.zeros(self.shape, dtype=np.float64)
 
     def __call__(self, x):
         ''' scaling reward
@@ -30,4 +30,4 @@ class RewardScaling:
 
     def reset(self):
         ''' When an episode is done,we should reset self.R '''
-        self.R = np.zeros(self.shape)
+        self.R = np.zeros(self.shape, dtype=np.float64)
