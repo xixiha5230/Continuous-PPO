@@ -117,7 +117,7 @@ class MultiGaussianActor(Actor):
             self.m_sigma = nn.ModuleDict(
                 [[str(i), nn.Sequential(
                     nn.Linear(input_size, self.action_dim),
-                    nn.Softmax(dim=-1)
+                    nn.Softplus()
                 )] for i in range(task_num)]
             )
             for _, m in self.m_sigma.items():
