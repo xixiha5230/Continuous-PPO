@@ -8,6 +8,7 @@ import torch
 import yaml
 
 from algorithm.PPO import PPO
+from utils.ConfigHelper import ConfigHelper
 from utils.env_helper import create_env
 from utils.obs_2_tensor import _obs_2_tensor
 
@@ -26,42 +27,25 @@ parser.add_argument(
 
 
 def test(args):
-    if(torch.cuda.is_available()):
-        device = 'cuda'
-        torch.cuda.empty_cache()
-        print(f'Device set to : {torch.cuda.get_device_name(device)}')
-    else:
-        device = 'cpu'
-        print('Device set to : cpu')
-
-    with open(args.config, 'r') as f:
-        config = yaml.safe_load(f)
-
-    conf_train = config['train']
-    env_name = conf_train['env_name']
-    action_type = conf_train['action_type']
-    exp_name = conf_train['exp_name']
-    run_num = conf_train['run_num']
-
+    config = ConfigHelper(args.config)
+    
     render = True
     frame_delay = 0.01
     total_test_episodes = 1 if args.save_gif else 10
 
     env = create_env(config, render_mode='rgb_array' if args.save_gif else 'human', id=101, time_scale=1)
     observation_space = env.observation_space
-    if action_type == 'continuous':
+    if config.action_type == 'continuous':
         action_space = env.action_space
-    elif action_type == 'discrete':
+    elif config.action_type == 'discrete':
         action_space = env.action_space.n
-    else:
-        raise NotImplementedError(action_type)
 
     # initialize a PPO agent
     ppo_agent = PPO(observation_space, action_space, config)
     ppo_agent.policy.eval()
 
     # load latest checkpoint
-    log_dir = f'./PPO_logs/{env_name}/{exp_name}/run_{run_num}'
+    log_dir = f'./PPO_logs/{config.env_name}/{config.exp_name}/run_{config.run_num}'
     latest_checkpoint = max(glob.glob(f'{log_dir}/checkpoints/*'), key=os.path.getctime)
     # latest_checkpoint = f'{log_dir}/checkpoints/230.pth'
     print(f'resume from {latest_checkpoint}')

@@ -58,7 +58,8 @@ class Buffer():
             self.obs = [[torch.zeros((self.n_workers,) + t.shape).to(self.device)
                         for t in observation_space] for _ in range(self.worker_steps)]
         else:
-            self.obs = torch.zeros((self.n_workers, self.worker_steps) + observation_space.shape).to(self.device)
+            self.obs = [[torch.zeros((self.n_workers,) + observation_space.shape).to(self.device)]
+                        for _ in range(self.worker_steps)]
         # hxs & cxs
         self.hxs = torch.zeros((self.n_workers, self.worker_steps, hidden_state_size)).to(self.device)
         if self.layer_type == 'lstm':
@@ -109,8 +110,8 @@ class Buffer():
                 episode_done_indices[w].append(self.worker_steps - 1)
 
         # Retrieve unpadded sequence indices
-        self.flat_sequence_indices = np.asarray(self._arange_sequences(np.arange(
-            0, self.n_workers * self.worker_steps).reshape((self.n_workers, self.worker_steps)), episode_done_indices)[0], dtype=object)
+        index = np.arange(0, self.n_workers * self.worker_steps).reshape((self.n_workers, self.worker_steps))
+        self.flat_sequence_indices = np.asarray(self._arange_sequences(index, episode_done_indices)[0], dtype=object)
 
         # Split obs, values, advantages, recurrent cell states, actions and log_probs into episodes and then into sequences
         for key, value in samples.items():
@@ -124,8 +125,7 @@ class Buffer():
 
             # Stack sequences (target shape: (Sequence, Step, Data ...) and apply data to the samples dictionary
             if isinstance(sequences[0], list):
-                samples[key] = [torch.stack([sequences[j][i] for j in range(len(sequences))], axis=0)
-                                for i in range(len(sequences[0]))]
+                samples[key] = [torch.stack(sequence_i, axis=0) for sequence_i in zip(*sequences)]
             else:
                 samples[key] = torch.stack(sequences, axis=0)
 
@@ -172,7 +172,7 @@ class Buffer():
         sequences = []
         max_length = 1
         if isinstance(data, list):
-            data = [torch.stack([data[i][j] for i in range(len(data))], axis=1) for j in range(len(data[0]))]
+            data = list(map(lambda x: torch.stack(x, axis=1), zip(*data)))
         for w in range(self.n_workers):
             start_index = 0
             for done_index in episode_done_indices[w]:

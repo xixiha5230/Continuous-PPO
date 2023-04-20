@@ -26,7 +26,7 @@ class LunarLander:
         self._rewards = []
         obs, _ = self._env.reset()
 
-        return obs
+        return [obs]
 
     def step(self, action):
         obs, reward, terminated, truncated, info = self._env.step(action)
@@ -37,7 +37,7 @@ class LunarLander:
                     'length': len(self._rewards)}
         else:
             info = None
-        return obs, reward, done, info
+        return [obs], reward, done, info
 
     def render(self):
         return self._env.render()

@@ -92,12 +92,11 @@ class ActorCritic(nn.Module):
 
         if self.multi_task:
             task_feature = self.task_net(obs[-1])
-            feature = obs[0] if len(obs) <= 2 else obs[:-1]
+            feature = obs[:-1]
         else:
             feature = obs
 
-        if hasattr(self, 'obs_net'):
-            feature = self.obs_net(feature)
+        feature = self.obs_net(feature) if hasattr(self, 'obs_net') else obs[0]
 
         if self.use_lstm:
             feature, hidden_out = self.rnn_net(feature, hidden_in, sequence_length)

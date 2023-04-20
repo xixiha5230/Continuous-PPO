@@ -97,7 +97,7 @@ class Trainer:
         self.start_time = datetime.now().replace(microsecond=0)
         print('Started training at (GMT) : ', self.start_time)
 
-        for self.conf.update in range(self.conf.update, self.conf.max_updates):
+        for self.conf.update in range(self.conf.update, self.conf.max_updates+1):
             # Parameter decay
             learning_rate, clip_range, entropy_coeff = get_decay(self.conf)
 
@@ -144,10 +144,10 @@ class Trainer:
     def _multi_buff_mini_batch_generator(self):
         if self.conf.multi_task:
             mini_batch_generator = [b.recurrent_mini_batch_generator() for b in self.buffer]
-            self.actual_sequence_length = self.buffer.actual_sequence_length
+            self.actual_sequence_length = self.buffer[0].actual_sequence_length
         else:
             mini_batch_generator = self.buffer.recurrent_mini_batch_generator()
-            self.actual_sequence_length = self.buffer[0].actual_sequence_length
+            self.actual_sequence_length = self.buffer.actual_sequence_length
         while True:
             try:
                 mini_batch = [next(mg)
@@ -161,7 +161,8 @@ class Trainer:
         if isinstance(self.obs_space, (gym_spaces.Tuple, gymnasium_spaces.Tuple)):
             obs = [[np.zeros(o.shape, dtype=np.float32) for o in self.obs_space] for _ in range(self.conf.num_workers)]
         else:
-            obs = np.zeros((self.conf.num_workers,) + self.obs_space.shape, dtype=np.float32)
+            obs = [[np.zeros(self.obs_space.shape, dtype=np.float32)] for _ in range(self.conf.num_workers)]
+
         # reset env
         for worker in self.workers:
             worker.child.send(('reset', None))
@@ -190,37 +191,31 @@ class Trainer:
             with torch.no_grad():
                 # Preprocess state data
                 state_t = _obs_2_tensor(self.obs, self.conf.device)
-                if isinstance(state_t, list):
-                    if self.conf.multi_task:
-                        # gnenrate select mask
-                        if not hasattr(self, 'mask') or not hasattr(self, 'indices') or not hasattr(self, 'buffer_mask') or not hasattr(self, 'original_order'):
-                            self.mask, self.indices = self._state_classified_mask(state_t)
-                            self.buffer_mask = torch.arange(0, self.conf.num_workers).reshape(
-                                self.conf.task_num, self.conf.num_workers // self.conf.task_num).to(self.conf.device)
-                            self.original_order = torch.argsort(torch.cat(self.mask))
-                        reshaped_state_t = [torch.index_select(s, 0, torch.cat(self.mask)) for s in state_t]
-                        for i, m in enumerate(self.buffer_mask):
-                            self.buffer[i].obs[t] = [torch.index_select(v, 0, m) for v in reshaped_state_t]
-                    else:
-                        self.buffer.obs[t] = state_t
+                if self.conf.multi_task:
+                    # gnenrate select mask
+                    if not hasattr(self, 'mask') or not hasattr(self, 'indices') or not hasattr(self, 'buffer_mask') or not hasattr(self, 'original_order'):
+                        self.mask, self.indices = self._state_classified_mask(state_t)
+                        self.buffer_mask = torch.arange(0, self.conf.num_workers).reshape(
+                            self.conf.task_num, self.conf.num_workers // self.conf.task_num).to(self.conf.device)
+                        self.original_order = torch.argsort(torch.cat(self.mask))
+                    reshaped_state_t = [torch.index_select(s, 0, torch.cat(self.mask)) for s in state_t]
+                    for i, m in enumerate(self.buffer_mask):
+                        self.buffer[i].obs[t] = [torch.index_select(v, 0, m) for v in reshaped_state_t]
                 else:
-                    assert self.conf.multi_task == False
-                    self.buffer.obs[:, t] = state_t
+                    self.buffer.obs[t] = state_t
+
                 if self.conf.use_lstm:
-                    if self.conf.layer_type == 'gru':
-                        # save to diffrent buffer,self.recurrent_cell already shaped
-                        if self.conf.multi_task:
-                            for i, m in enumerate(self.buffer_mask):
+                    if self.conf.multi_task:
+                        for i, m in enumerate(self.buffer_mask):
+                            if self.conf.layer_type == 'gru':
                                 self.buffer[i].hxs[:, t] = torch.index_select(self.recurrent_cell.squeeze(0), 0, m)
-                        else:
-                            self.buffer.hxs[:, t] = self.recurrent_cell.squeeze(0)
-                    elif self.conf.layer_type == 'lstm':
-                        # save to diffrent buffer,self.recurrent_cell already shaped
-                        if self.conf.multi_task:
-                            for i, m in enumerate(self.buffer_mask):
+                            elif self.conf.layer_type == 'lstm':
                                 self.buffer[i].hxs[:, t] = torch.index_select(self.recurrent_cell[0].squeeze(0), 0, m)
-                                self.buffer[i].hxs[:, t] = torch.index_select(self.recurrent_cell[1].squeeze(0), 0, m)
-                        else:
+                                self.buffer[i].cxs[:, t] = torch.index_select(self.recurrent_cell[1].squeeze(0), 0, m)
+                    else:
+                        if self.conf.layer_type == 'gru':
+                            self.buffer.hxs[:, t] = self.recurrent_cell.squeeze(0)
+                        elif self.conf.layer_type == 'lstm':
                             self.buffer.hxs[:, t] = self.recurrent_cell[0].squeeze(0)
                             self.buffer.cxs[:, t] = self.recurrent_cell[1].squeeze(0)
 
