@@ -18,7 +18,7 @@ from utils.ConfigHelper import ConfigHelper
 from utils.env_helper import create_env
 from utils.Logger import Logger
 from utils.obs_2_tensor import _obs_2_tensor
-from utils.polynomial_decay import polynomial_decay
+from utils.polynomial_decay import get_decay
 from worker.Worker import Worker
 
 
@@ -99,12 +99,7 @@ class Trainer:
 
         for self.conf.update in range(self.conf.update, self.conf.max_updates):
             # Parameter decay
-            learning_rate = polynomial_decay(self.conf.lr_schedule['init'], self.conf.lr_schedule['final'],
-                                             self.conf.lr_schedule['max_decay_steps'], self.conf.lr_schedule['pow'], self.conf.update)
-            clip_range = polynomial_decay(self.conf.clip_range_schedule['init'], self.conf.clip_range_schedule['final'],
-                                          self.conf.clip_range_schedule['max_decay_steps'], self.conf.clip_range_schedule['pow'], self.conf.update)
-            entropy_coeff = polynomial_decay(self.conf.entropy_coeff_schedule['init'], self.conf.entropy_coeff_schedule['final'],
-                                             self.conf.entropy_coeff_schedule['max_decay_steps'], self.conf.entropy_coeff_schedule['pow'], self.conf.update)
+            learning_rate, clip_range, entropy_coeff = get_decay(self.conf)
 
             # Sample training data
             sampled_episode_info, mean_rnd_reward, scaled_rewards = self._sample_training_data()
@@ -117,68 +112,46 @@ class Trainer:
                 self.buffer.prepare_batch_dict()
 
             # train K epochs
+            actor_losses, critic_losses,  total_losses, dist_entropys, task_losses, rnd_losses = [[] for _ in range(6)]
             for _ in range(self.conf.K_epochs):
-                if self.conf.multi_task:
-                    mini_batch_generator = self._multi_buff_mini_batch_generator(
-                        [b.recurrent_mini_batch_generator() for b in self.buffer])
-                    actual_sequence_length = self.buffer[0].actual_sequence_length
-                else:
-                    mini_batch_generator = self.buffer.recurrent_mini_batch_generator()
-                    actual_sequence_length = self.buffer.actual_sequence_length
-
-                actor_loss_mean = []
-                critic_loss_mean = []
-                dist_entropy_mean = []
-                total_loss_mean = []
-                task_loss_mean = []
-                rnd_loss_mean = []
+                mini_batch_generator = self._multi_buff_mini_batch_generator()
                 for mini_batch in mini_batch_generator:
-                    actor_loss, critic_loss, loss, dist_entropy, task_loss, rnd_loss = self.ppo_agent.train_mini_batch(
-                        learning_rate, clip_range, entropy_coeff, mini_batch, actual_sequence_length)
-                    actor_loss_mean.append(actor_loss)
-                    critic_loss_mean.append(critic_loss)
-                    dist_entropy_mean.append(dist_entropy)
-                    total_loss_mean.append(loss)
-                    if task_loss is not None:
-                        task_loss_mean.append(task_loss)
-                    if rnd_loss is not None:
-                        rnd_loss_mean.append(rnd_loss)
+                    losses = self.ppo_agent.train_mini_batch(
+                        learning_rate, clip_range, entropy_coeff, mini_batch, self.actual_sequence_length)
+                    actor_losses.append(losses[0])
+                    critic_losses.append(losses[1])
+                    total_losses.append(losses[2])
+                    dist_entropys.append(losses[3])
+                    if losses[4] is not None:
+                        task_losses.append(losses[4])
+                    if losses[5] is not None:
+                        rnd_losses.append(losses[5])
+
             # free memory
-            if self.conf.multi_task:
-                for b in self.buffer:
-                    b.free_memory()
-            else:
-                self.buffer.free_memory()
+            map(lambda x: x.free_memory(), self.buffer) if self.conf.multi_task else self.buffer.free_memory()
 
             # write logs
             self.conf.i_episode += len(sampled_episode_info)
             episode_result = Trainer._process_episode_info(sampled_episode_info)
-            self.logger.write_tensorboard(
-                (actor_loss_mean,
-                 critic_loss_mean,
-                 total_loss_mean,
-                 dist_entropy_mean,
-                 task_loss_mean,
-                 rnd_loss_mean,
-                 learning_rate,
-                 clip_range,
-                 entropy_coeff,
-                 mean_rnd_reward,
-                 episode_result,
-                 scaled_rewards
-                 ),
-                self.conf.update
-            )
+            self.logger.write_tensorboard((actor_losses, critic_losses, total_losses, dist_entropys, task_losses, rnd_losses,
+                                          learning_rate, clip_range, entropy_coeff, mean_rnd_reward, episode_result, scaled_rewards), self.conf.update)
             self.logger.write_reward(self.conf.update, self.conf.i_episode, episode_result)
 
             # save model weights
             if self.conf.update != 0 and self.conf.update % self.conf.save_model_freq == 0:
                 self._save()
 
-    def _multi_buff_mini_batch_generator(self, mini_batch_generators: list):
+    def _multi_buff_mini_batch_generator(self):
+        if self.conf.multi_task:
+            mini_batch_generator = [b.recurrent_mini_batch_generator() for b in self.buffer]
+            self.actual_sequence_length = self.buffer.actual_sequence_length
+        else:
+            mini_batch_generator = self.buffer.recurrent_mini_batch_generator()
+            self.actual_sequence_length = self.buffer[0].actual_sequence_length
         while True:
             try:
-                mini_batch = [next(mg) for mg in mini_batch_generators]
+                mini_batch = [next(mg)
+                              for mg in mini_batch_generator] if self.conf.multi_task else next(mini_batch_generator)
                 yield mini_batch
             except StopIteration:
                 break
@@ -186,7 +159,7 @@ class Trainer:
     def _reset_env(self):
         ''' reset all environment in workers '''
         if isinstance(self.obs_space, (gym_spaces.Tuple, gymnasium_spaces.Tuple)):
-            obs = [[np.zeros(t.shape, dtype=np.float32) for t in self.obs_space] for _ in range(self.conf.num_workers)]
+            obs = [[np.zeros(o.shape, dtype=np.float32) for o in self.obs_space] for _ in range(self.conf.num_workers)]
         else:
             obs = np.zeros((self.conf.num_workers,) + self.obs_space.shape, dtype=np.float32)
         # reset env

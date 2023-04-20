@@ -53,7 +53,7 @@ class Logger:
         with open(reward_scaling_file, 'wb') as f:
             pickle.dump(obj, f)
 
-    def write_tensorboard(self, loss, update):
+    def write_tensorboard(self, datas, update):
         (actor_loss_mean,
          critic_loss_mean,
          total_loss_mean,
@@ -65,7 +65,7 @@ class Logger:
          entropy_coeff,
          mean_rnd_reward,
          episode_result,
-         scaled_rewards) = loss
+         scaled_rewards) = datas
 
         self.writer.add_scalar('Loss/actor', np.mean(actor_loss_mean), update)
         self.writer.add_scalar('Loss/critic', np.mean(critic_loss_mean), update)

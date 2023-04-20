@@ -1,3 +1,16 @@
+from utils.ConfigHelper import ConfigHelper
+
+
+def get_decay(conf: ConfigHelper):
+    learning_rate = polynomial_decay(conf.lr_schedule['init'], conf.lr_schedule['final'],
+                                     conf.lr_schedule['max_decay_steps'], conf.lr_schedule['pow'], conf.update)
+    clip_range = polynomial_decay(conf.clip_range_schedule['init'], conf.clip_range_schedule['final'],
+                                  conf.clip_range_schedule['max_decay_steps'], conf.clip_range_schedule['pow'], conf.update)
+    entropy_coeff = polynomial_decay(conf.entropy_coeff_schedule['init'], conf.entropy_coeff_schedule['final'],
+                                     conf.entropy_coeff_schedule['max_decay_steps'], conf.entropy_coeff_schedule['pow'], conf.update)
+    return learning_rate, clip_range, entropy_coeff
+
+
 def polynomial_decay(initial: float, final: float, max_decay_steps: int, pow: float, current_step: int) -> float:
     """Decays hyperparameters polynomially. If pow is set to 1.0, the decay behaves linearly. 
     Args:
