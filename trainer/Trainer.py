@@ -180,9 +180,9 @@ class Trainer:
                     self.mask, self.worker_2_buff, self.wroker_2_buff_subw = self._state_classified_mask(state_t)
                     self.buffer_mask = torch.arange(0, self.conf.num_workers).reshape(
                         self.conf.task_num, self.conf.num_workers // self.conf.task_num).to(self.conf.device)
-                    self.original_order = torch.argsort(torch.cat(self.mask))
+                    self.original_order = torch.argsort(self.mask)
+                reordered_state_t = [torch.index_select(s, 0, self.mask) for s in state_t]
 
-                reordered_state_t = [torch.index_select(s, 0, torch.cat(self.mask)) for s in state_t]
                 for i, m in enumerate(self.buffer_mask):
                     self.buffer[i].obs[t] = [torch.index_select(v, 0, m) for v in reordered_state_t]
 
@@ -256,7 +256,7 @@ class Trainer:
             # save next obs in buffer for rnd
             if self.conf.use_rnd:
                 _state_t = _obs_2_tensor(self.obs, self.conf.device)
-                _rnd_state_t = torch.index_select(_state_t[0], 0, torch.cat(self.mask))
+                _rnd_state_t = torch.index_select(_state_t[0], 0, self.mask)
                 for i, m in enumerate(self.buffer_mask):
                     self.buffer[i].rnd_next_obs[:, t] = torch.index_select(_rnd_state_t, 0, m)
 
@@ -279,7 +279,7 @@ class Trainer:
 
         # Calculate advantages
         state_t = _obs_2_tensor(self.obs, self.conf.device)
-        state_t = [torch.index_select(s, 0, torch.cat(self.mask)) for s in state_t]
+        state_t = [torch.index_select(s, 0, self.mask) for s in state_t]
         _, _, last_value_t, last_rnd_value_t, _ = self._multi_task_select_action(state_t, self.buffer_mask)
         for b, m in zip(self.buffer, self.buffer_mask):
             if self.conf.use_rnd:
@@ -333,6 +333,7 @@ class Trainer:
         reward_worker_map = {}
         for w in range(self.conf.num_workers):
             reward_worker_map[w] = torch.where(torch.stack(mask, dim=0) == w)[1].item()
+        mask = torch.cat(mask)
         return mask, indices, reward_worker_map
 
     @ staticmethod

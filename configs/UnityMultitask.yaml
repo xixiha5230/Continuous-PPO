@@ -27,7 +27,7 @@ train:
   K_epochs: 4
   device: cuda
   env_name: UnityMultitask
-  exp_name: rnd_evo
+  exp_name: test
   action_type: continuous
   hidden_layer_size: 512
   max_updates: 1000

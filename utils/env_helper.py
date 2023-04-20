@@ -7,7 +7,6 @@ from envs.Hoper.HopperRun import HopperRun
 from envs.LunarLander import LunarLander
 from envs.MinigridMemory import Minigrid
 from envs.MountainCar import MountainCar
-from envs.Pyramids import Pyramids
 from envs.Walker2d import Walker2d
 from utils.ConfigHelper import ConfigHelper
 
@@ -61,6 +60,7 @@ def create_env(conf: ConfigHelper, id: int = 0, render_mode=None, time_scale=2):
         from envs.UnityMultitask import UnityMultitask
         return UnityMultitask(task, id, time_scale)
     elif env_name == 'Pyramids':
+        from envs.Pyramids import Pyramids
         return Pyramids(f'./UnityEnvs/{env_name}', id, time_scale)
     else:
         raise f'Unknow env: {env_name}'
