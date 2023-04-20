@@ -109,15 +109,12 @@ class PPO:
         Returns:
             {tuple} -- tuple of trainig statistics (e.g. loss)
         '''
-        if self.multi_task:
-            multi_task_results = [self._train_mini_batch(
-                clip_range, entropy_coeff, task_mini_batch, sequence_length, mudule_index) for mudule_index, task_mini_batch in enumerate(mini_batch)]
-            multi_task_results = list(zip(*multi_task_results))
-            # TODO maybe use sum(x) * (1.0 / len(x))
-            policy_loss, vf_loss, entropy_bonus, task_loss, rnd_loss, loss = map(lambda x: sum(x), multi_task_results)
-        else:
-            policy_loss, vf_loss, entropy_bonus, task_loss, rnd_loss, loss = self._train_mini_batch(
-                clip_range, entropy_coeff, mini_batch, sequence_length, -1)
+        
+        multi_task_results = [self._train_mini_batch(
+            clip_range, entropy_coeff, task_mini_batch, sequence_length, mudule_index) for mudule_index, task_mini_batch in enumerate(mini_batch)]
+        multi_task_results = list(zip(*multi_task_results))
+        # TODO maybe use sum(x) * (1.0 / len(x))
+        policy_loss, vf_loss, entropy_bonus, task_loss, rnd_loss, loss = map(lambda x: sum(x), multi_task_results)
 
         # Compute gradients
         for pg in self.optimizer.param_groups:

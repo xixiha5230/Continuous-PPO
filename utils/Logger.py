@@ -12,7 +12,8 @@ class Logger:
         os.makedirs(base_log_dir, exist_ok=True)
         self.run_num = len(next(os.walk(base_log_dir))[1]) if not resume else run_num
         self.run_log_dir = os.path.join(base_log_dir, f'run_{self.run_num}')
-        os.makedirs(self.run_log_dir, exist_ok=True)
+        if not resume:
+            os.makedirs(self.run_log_dir)
 
         reward_file = os.path.join(self.run_log_dir, 'reward.csv')
         if not resume:

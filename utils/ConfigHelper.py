@@ -41,9 +41,7 @@ class ConfigHelper:
         self.run_num = conf_train.setdefault('run_num', 0)
         self.multi_task = conf_train.setdefault('multi_task', False)
         self.task = self.conf.get('task', [])
-        self.task_num = len(self.task)
-        if self.multi_task:
-            assert self.task_num > 0
+        self.task_num = len(self.task) if self.multi_task else 1
         self.use_rnd = conf_train.setdefault('use_rnd', False)
         self.rnd_rate = conf_train.setdefault('rnd_rate', 0.5)
 
