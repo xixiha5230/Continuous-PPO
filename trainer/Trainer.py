@@ -295,6 +295,8 @@ class Trainer:
             if self.conf.use_lstm:
                 task_hidden_in = torch.index_select(self.recurrent_cell, 1, m) if self.conf.layer_type == 'gru' else \
                     (torch.index_select(self.recurrent_cell[0], 1, m), torch.index_select(self.recurrent_cell[1], 1, m))
+            else:
+                task_hidden_in = None
 
             task_data.append(self.ppo_agent.select_action(task_state, task_hidden_in, i))
 
