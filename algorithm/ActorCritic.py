@@ -136,7 +136,9 @@ class ActorCritic(nn.Module):
 
         if hasattr(self, 'obs_net'):
             feature = self.obs_net(feature)
-
+        else:
+            if isinstance(feature, list):
+                feature = feature[0]
         if self.use_lstm:
             feature, hidden_out = self.rnn_net(feature, hidden_in, sequence_length)
         else:
