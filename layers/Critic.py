@@ -24,10 +24,10 @@ class Critic(nn.Module):
         )
         nn.init.orthogonal_(self.critic_hidden[0].weight, np.sqrt(2))
         self.critic = nn.Linear(input_size, output_size)
-        nn.init.orthogonal_(self.critic.weight, 1)
+        nn.init.orthogonal_(self.critic.weight, np.sqrt(0.01))
         if self.use_rnd:
             self.rnd_critic = nn.Linear(input_size, output_size)
-            nn.init.orthogonal_(self.rnd_critic.weight, 1)
+            nn.init.orthogonal_(self.rnd_critic.weight, np.sqrt(0.01))
 
     def forward(self, feature: torch.Tensor):
         '''
