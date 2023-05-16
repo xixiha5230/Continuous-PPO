@@ -3,7 +3,6 @@ import torch
 from gym import spaces as gym_spaces
 from gymnasium import spaces as gymnasium_spaces
 
-from normalization.RNDRunningMeanStd import RNDRunningMeanStd
 from utils.ConfigHelper import ConfigHelper
 
 
@@ -77,8 +76,6 @@ class Buffer():
             self.rnd_values = torch.zeros((self.n_workers, self.worker_steps)).to(self.device)
             self.rnd_rewards = np.zeros((self.n_workers, self.worker_steps), dtype=np.float32)
             self.rnd_advantages = torch.zeros((self.n_workers, self.worker_steps)).to(self.device)
-            # TODO SAVE? reuse? move to RND?
-            self.rnd_reward_rms = RNDRunningMeanStd(shape=(1,))
 
     def prepare_batch_dict(self) -> None:
         '''Flattens the training samples and stores them inside a dictionary. Due to using a recurrent policy,
@@ -312,17 +309,3 @@ class Buffer():
                 gae = delta + self.gamma * self.lamda * gae * mask[:, t]
                 advantages[:, t] = gae
                 last_value = values[:, t]
-
-    # TODO move to RND?
-    def normalize_rnd_rewards(self):
-        # OpenAI's usage of Forward filter is definitely wrong;
-        # Because: https://github.com/openai/random-network-distillation/issues/16#issuecomment-488387659
-        intrinsic_returns = [[] for _ in range(self.n_workers)]
-        for worker in range(self.n_workers):
-            rewems = 0
-            for step in reversed(range(self.worker_steps)):
-                rewems = rewems * self.gamma + self.rnd_rewards[worker][step]
-                intrinsic_returns[worker].insert(0, rewems)
-        self.rnd_reward_rms.update(np.ravel(intrinsic_returns).reshape(-1, 1))
-
-        self.rnd_rewards = self.rnd_rewards / (self.rnd_reward_rms.var ** 0.5)

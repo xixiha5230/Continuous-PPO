@@ -64,9 +64,9 @@ class Logger:
          learning_rate,
          clip_range,
          entropy_coeff,
-         mean_rnd_reward,
          episode_result,
-         scaled_rewards) = datas
+         scaled_rewards,
+         mean_rnd_reward) = datas
 
         self.writer.add_scalar('Loss/actor', np.mean(actor_loss_mean), update)
         self.writer.add_scalar('Loss/critic', np.mean(critic_loss_mean), update)
@@ -83,7 +83,7 @@ class Logger:
             self.writer.add_scalar('Train/rnd_reward_mean', mean_rnd_reward, update)
         if(len(episode_result) > 0):
             self.writer.add_scalar('Train/reward_mean', episode_result['reward_mean'], update)
-            self.writer.add_scalar('Train/scaled_reward', np.mean(scaled_rewards), update)
+            self.writer.add_scalar('Train/scaled_reward', scaled_rewards, update)
             self.writer.add_scalar('Train/reward_std', episode_result['reward_std'], update)
             self.writer.add_scalar('Train/length_mean', episode_result['length_mean'], update)
             self.writer.add_scalar('Train/length_std', episode_result['length_std'], update)

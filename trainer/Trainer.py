@@ -8,6 +8,7 @@ from gymnasium import spaces as gymnasium_spaces
 
 from algorithm.PPO import PPO
 from normalization.RewardScaling import RewardScaling
+from normalization.RNDRewardScaling import RNDRewardScaling
 from replaybuffer.Buffer import Buffer
 from utils.ConfigHelper import ConfigHelper
 from utils.env_helper import create_env
@@ -56,6 +57,8 @@ class Trainer:
 
         print('Step 5: Init buffer')
         self.buffer = [Buffer(self.conf, self.obs_space, self.action_space) for _ in range(self.conf.task_num)]
+        if self.conf.use_rnd:
+            self.rnd_scaling = [RNDRewardScaling(shape=(1,), config=self.conf) for _ in range(len(self.buffer))]
 
         print('Step 6: Init model and optimizer')
         self.ppo_agent = PPO(self.obs_space, self.action_space, self.conf)
@@ -94,7 +97,7 @@ class Trainer:
             learning_rate, clip_range, entropy_coeff = get_decay(self.conf)
 
             # Sample training data
-            sampled_episode_info, mean_rnd_reward, scaled_rewards = self._sample_training_data()
+            sampled_episode_info = self._sample_training_data()
 
             # Prepare the sampled data inside the buffer (splits data into sequences)
             for b in self.buffer:
@@ -116,19 +119,22 @@ class Trainer:
                     if losses[5] is not None:
                         rnd_losses.append(losses[5])
 
-            # free memory
-            [b.free_memory() for b in self.buffer]
-
             # write logs
             self.conf.i_episode += len(sampled_episode_info)
             episode_result = Trainer._process_episode_info(sampled_episode_info)
             self.logger.write_tensorboard((actor_losses, critic_losses, total_losses, dist_entropys, task_losses, rnd_losses,
-                                          learning_rate, clip_range, entropy_coeff, mean_rnd_reward, episode_result, scaled_rewards), self.conf.update)
+                                           learning_rate, clip_range, entropy_coeff,  episode_result,
+                                           np.mean([b.rewards for b in self.buffer]),
+                                           np.mean([b.rnd_rewards for b in self.buffer])),
+                                          self.conf.update)
             self.logger.write_reward(self.conf.update, self.conf.i_episode, episode_result)
 
             # save model weights
             if self.conf.update != 0 and self.conf.update % self.conf.save_model_freq == 0:
                 self._save()
+
+            # free memory
+            [b.free_memory() for b in self.buffer]
 
     def _multi_buff_mini_batch_generator(self):
         mini_batch_generator = [b.recurrent_mini_batch_generator() for b in self.buffer]
@@ -167,9 +173,6 @@ class Trainer:
             {list} -- list of results of completed episodes.
         '''
         episode_infos = []
-        scaled_rewards = []
-        episode_reward = [[] for _ in range(self.conf.num_workers)]
-        # Sample actions from the model and collect experiences for training
         for t in range(self.conf.worker_steps):
             # Gradients can be omitted for sampling training data
             with torch.no_grad():
@@ -177,9 +180,8 @@ class Trainer:
                 state_t = _obs_2_tensor(self.obs, self.conf.device)
                 # gnenrate select mask
                 if not hasattr(self, 'mask') or not hasattr(self, 'indices') or not hasattr(self, 'buffer_mask') or not hasattr(self, 'original_order'):
-                    self.mask, self.worker_2_buff, self.wroker_2_buff_subw = self._state_classified_mask(state_t)
-                    self.buffer_mask = torch.arange(0, self.conf.num_workers).reshape(
-                        self.conf.task_num, self.conf.num_workers // self.conf.task_num).to(self.conf.device)
+                    self.mask, self.worker_2_buff, self.wroker_2_buff_subw, self.buffer_mask = self._state_classified_mask(
+                        state_t)
                     self.original_order = torch.argsort(self.mask)
                 reordered_state_t = [torch.index_select(s, 0, self.mask) for s in state_t]
 
@@ -222,9 +224,6 @@ class Trainer:
                     reward_w) if self.conf.use_reward_scaling else reward_w
                 self.buffer[buffer_index].dones[subworker_index, t] = done_w
 
-                # debug
-                episode_reward[w].append(self.buffer[buffer_index].rewards[subworker_index, t])
-
                 if info:
                     # Store the information of the completed episode (e.g. total reward, episode length)
                     episode_infos.append(info)
@@ -246,10 +245,6 @@ class Trainer:
                     if self.conf.use_reward_scaling:
                         self.reward_scaling[w].reset()
 
-                    # debug
-                    scaled_rewards.append(np.mean(episode_reward[w]))
-                    episode_reward[w] = []
-
                 # Store latest observations
                 self.obs[w] = obs_w
 
@@ -269,24 +264,19 @@ class Trainer:
                 num_worker_task = [b.rnd_rewards.shape[0] for b in self.buffer]
                 self.rnd_reward_index = np.cumsum(num_worker_task)
             rnd_rewards = np.split(total_rnd_rewards[:self.rnd_reward_index[-1]], self.rnd_reward_index[:-1])
-            for b, r in zip(self.buffer, rnd_rewards):
-                b.rnd_rewards = r
-                # TODO 每个worker normalize ？
-                b.normalize_rnd_rewards()
-            mean_rnd_reward = total_rnd_rewards.mean().item()
-        else:
-            mean_rnd_reward = None
+            # save rnd rewards in buffer
+            for b, rs, rr in zip(self.buffer, self.rnd_scaling, rnd_rewards):
+                b.rnd_rewards = rs.normalize_rnd_rewards(rr)
 
         # Calculate advantages
         state_t = _obs_2_tensor(self.obs, self.conf.device)
         state_t = [torch.index_select(s, 0, self.mask) for s in state_t]
         _, _, last_value_t, last_rnd_value_t, _ = self._multi_task_select_action(state_t, self.buffer_mask)
         for b, m in zip(self.buffer, self.buffer_mask):
-            if self.conf.use_rnd:
-                b.calc_advantages(torch.index_select(last_value_t, 0, m), torch.index_select(last_rnd_value_t, 0, m))
-            else:
-                b.calc_advantages(torch.index_select(last_value_t, 0, m), None)
-        return episode_infos, mean_rnd_reward, scaled_rewards
+            b.calc_advantages(torch.index_select(last_value_t, 0, m), torch.index_select(
+                last_rnd_value_t, 0, m) if last_rnd_value_t is not None else None)
+
+        return episode_infos
 
     def _multi_task_select_action(self, reshaped_state, buffer_mask):
         task_data = []
@@ -335,8 +325,9 @@ class Trainer:
         reward_worker_map = {}
         for w in range(self.conf.num_workers):
             reward_worker_map[w] = torch.where(torch.stack(mask, dim=0) == w)[1].item()
+        buffer_mask = torch.arange(0, self.conf.num_workers).reshape(torch.stack(mask).shape).to(self.conf.device)
         mask = torch.cat(mask)
-        return mask, indices, reward_worker_map
+        return mask, indices, reward_worker_map, buffer_mask
 
     @ staticmethod
     def _process_episode_info(episode_info: list) -> dict:
