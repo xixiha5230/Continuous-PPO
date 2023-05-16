@@ -34,7 +34,7 @@ train:
   num_mini_batch: 8
   random_seed: 0
   save_model_freq: 10
-  multi_task: false
+  multi_task: true
   use_rnd: false
   rnd_rate: 0.5
 worker:

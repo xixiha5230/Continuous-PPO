@@ -195,6 +195,8 @@ class PPO:
 
         # Task predictor loss
         if self.multi_task:
+            #TODO 不argmax行不行
+            # task_label =  mini_batch['obs'][-1][mini_batch['loss_mask']]
             task_label = torch.argmax(mini_batch['obs'][-1][mini_batch['loss_mask']], dim=-1)
             task_loss = self.task_predict_loss(task_pridcit, task_label)
         else:

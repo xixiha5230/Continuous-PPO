@@ -1,0 +1,13 @@
+gym==0.26.2
+gymnasium==0.27.1
+imageio==2.23.0
+Minigrid==2.1.0
+mlagents_envs==0.30.0
+mo_gymnasium==0.3.3
+numpy==1.23.5
+opencv_python==4.7.0.72
+PyYAML==6.0
+PyYAML==6.0
+tensorboardX==2.2
+tensorboardX==2.6
+torch==1.12.1
