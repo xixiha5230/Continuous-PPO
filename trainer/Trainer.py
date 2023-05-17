@@ -9,6 +9,7 @@ from gymnasium import spaces as gymnasium_spaces
 from algorithm.PPO import PPO
 from normalization.RewardScaling import RewardScaling
 from normalization.RNDRewardScaling import RNDRewardScaling
+from normalization.StateNormalizer import StateNormalizer
 from replaybuffer.Buffer import Buffer
 from utils.ConfigHelper import ConfigHelper
 from utils.env_helper import create_env
@@ -54,6 +55,9 @@ class Trainer:
         print('Step 4: Init reward scaling')
         if self.conf.use_reward_scaling:
             self.reward_scaling = [RewardScaling(1, 0.99) for _ in range(self.conf.num_workers)]
+        if self.conf.use_state_normailzation:
+            self.state_normalizer = StateNormalizer(self.obs_space)
+        # TODO 热身
 
         print('Step 5: Init buffer')
         self.buffer = [Buffer(self.conf, self.obs_space, self.action_space) for _ in range(self.conf.task_num)]
@@ -85,6 +89,8 @@ class Trainer:
                 self.reward_scaling = self.logger.load_pickle('reward_scaling.pkl')
             if self.conf.use_rnd:
                 self.rnd_scaling = self.logger.load_pickle('rnd_scaling.pkl')
+            if self.conf.use_state_normailzation:
+                self.state_normalizer = self.logger.load_pickle('state_normalizer.pkl')
 
     def run(self):
         '''
@@ -127,7 +133,7 @@ class Trainer:
             self.logger.write_tensorboard((actor_losses, critic_losses, total_losses, dist_entropys, task_losses, rnd_losses,
                                            learning_rate, clip_range, entropy_coeff,  episode_result,
                                            np.mean([b.rewards for b in self.buffer]),
-                                           np.mean([b.rnd_rewards for b in self.buffer])),
+                                           np.mean([b.rnd_rewards for b in self.buffer]) if self.conf.use_rnd else None),
                                           self.conf.update)
             self.logger.write_reward(self.conf.update, self.conf.i_episode, episode_result)
 
@@ -161,6 +167,8 @@ class Trainer:
         # Grab initial observations and store them in their respective placeholder location
         for w, worker in enumerate(self.workers):
             obs[w] = worker.child.recv()
+            if self.conf.use_state_normailzation:
+                obs[w] = self.state_normalizer(obs[w])
         # Setup initial recurrent cell states (LSTM: tuple(tensor, tensor) or GRU: tensor)
         recurrent_cell = self.ppo_agent.init_recurrent_cell_states(self.conf.num_workers)
         # reset reward scaling
@@ -220,6 +228,8 @@ class Trainer:
             # Retrieve step results from the environments
             for w, worker in enumerate(self.workers):
                 obs_w, reward_w, done_w, info = worker.child.recv()
+                if self.conf.use_state_normailzation:
+                    obs_w = self.state_normalizer(obs_w)
                 buffer_index = self.worker_2_buff[w]
                 subworker_index = self.wroker_2_buff_subw[w]
                 self.buffer[buffer_index].rewards[subworker_index, t] = self.reward_scaling[w](
@@ -233,6 +243,8 @@ class Trainer:
                     worker.child.send(('reset', None))
                     # Get data from reset
                     obs_w = worker.child.recv()
+                    if self.conf.use_state_normailzation:
+                        obs_w = self.state_normalizer(obs_w)
                     # Reset recurrent cell states
                     if self.conf.use_lstm and self.conf.reset_hidden_state:
                         rc = self.ppo_agent.init_recurrent_cell_states(1)
@@ -382,6 +394,8 @@ class Trainer:
             self.logger.save_pickle(self.reward_scaling, 'reward_scaling.pkl')
         if self.conf.use_rnd:
             self.logger.save_pickle(self.rnd_scaling, 'rnd_scaling.pkl')
+        if self.conf.use_state_normailzation:
+            self.logger.save_pickle(self.state_normalizer, 'state_normalizer.pkl')
         # save yaml file
         self.conf.save(self.logger.run_log_dir)
         print('--------------------------------------------------------------------------------------------')

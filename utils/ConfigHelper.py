@@ -44,6 +44,7 @@ class ConfigHelper:
         self.task_num = len(self.task) if self.multi_task else 1
         self.use_rnd = conf_train.setdefault('use_rnd', False)
         self.rnd_rate = conf_train.setdefault('rnd_rate', 0.5)
+        self.use_state_normailzation = conf_train.setdefault('use_state_normailzation', True)
 
         # PPO hyperparameters
         conf_ppo = {}
