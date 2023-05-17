@@ -83,6 +83,8 @@ class Trainer:
             self.ppo_agent.load(self.logger.latest_checkpoint)
             if self.conf.use_reward_scaling:
                 self.reward_scaling = self.logger.load_pickle('reward_scaling.pkl')
+            if self.conf.use_rnd:
+                self.rnd_scaling = self.logger.load_pickle('rnd_scaling.pkl')
 
     def run(self):
         '''
@@ -378,7 +380,8 @@ class Trainer:
         # save reward scaling
         if self.conf.use_reward_scaling:
             self.logger.save_pickle(self.reward_scaling, 'reward_scaling.pkl')
-
+        if self.conf.use_rnd:
+            self.logger.save_pickle(self.rnd_scaling, 'rnd_scaling.pkl')
         # save yaml file
         self.conf.save(self.logger.run_log_dir)
         print('--------------------------------------------------------------------------------------------')
