@@ -7,7 +7,5 @@ mo_gymnasium==0.3.3
 numpy==1.23.5
 opencv_python==4.7.0.72
 PyYAML==6.0
-PyYAML==6.0
-tensorboardX==2.2
 tensorboardX==2.6
 torch==1.12.1
