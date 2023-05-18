@@ -7,7 +7,7 @@ import tensorboardX
 
 
 class Logger:
-    def __init__(self, env_name, exp_name, run_num, resume) -> None:
+    def __init__(self, env_name, exp_name, run_num, resume, test=False) -> None:
         base_log_dir = os.path.join('PPO_logs', env_name, exp_name)
         os.makedirs(base_log_dir, exist_ok=True)
         self.run_num = len(next(os.walk(base_log_dir))[1]) if not resume else run_num
@@ -21,8 +21,8 @@ class Logger:
             self.reward_writter.write('update,\tepisode,\treward\n')
         else:
             self.reward_writter = open(reward_file, 'a+')
-
-        self.writer = tensorboardX.SummaryWriter(log_dir=self.run_log_dir)
+        if not test:
+            self.writer = tensorboardX.SummaryWriter(log_dir=self.run_log_dir)
         self.checkpoint_path = os.path.join(self.run_log_dir, 'checkpoints')
         os.makedirs(self.checkpoint_path, exist_ok=True)
         print('save checkpoint path : ' + self.checkpoint_path)
