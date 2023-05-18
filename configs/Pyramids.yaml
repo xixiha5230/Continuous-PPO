@@ -10,10 +10,10 @@ ppo:
     pow: 1.0
     max_decay_steps: 0
   lr_schedule:
-    init: 3.0e-4
-    final: 3.0e-4
+    init: 1.0e-4
+    final: 3.0e-5
     pow: 1.0
-    max_decay_steps: 0
+    max_decay_steps: 150
   gamma: 0.99
   lamda: 0.95
   vf_loss_coeff: 0.3
@@ -27,10 +27,10 @@ train:
   K_epochs: 4
   device: cuda
   env_name: Pyramids
-  exp_name: gru_rnd_5
+  exp_name: gru_rnd_lr_schedule
   action_type: discrete
   hidden_layer_size: 512
-  max_updates: 2000
+  max_updates: 300
   num_mini_batch: 8
   random_seed: 0
   save_model_freq: 10

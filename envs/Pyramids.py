@@ -42,7 +42,7 @@ class Pyramids:
     def reset(self):
         self._rewards = []
         obs = self._env.reset()
-        return obs[0]
+        return [obs[0]]
 
     def step(self, action):
         obs, reward, done, info = self._env.step(action)
@@ -52,7 +52,7 @@ class Pyramids:
                     'length': len(self._rewards)}
         else:
             info = None
-        return obs[0], reward, done, info
+        return [obs[0]], reward, done, info
 
     def render(self):
         return self._env.render()
