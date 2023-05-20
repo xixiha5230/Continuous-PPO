@@ -6,7 +6,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     '--config_file',
     type=str,
-    default='configs/LunarLander-v2.yaml',
+    default="configs/UnityMultitask.yaml",
     help='The config file',
 )
 
@@ -15,7 +15,7 @@ parser.add_argument(
 # 优化整理代码
 if __name__ == '__main__':
     args = parser.parse_args()
-    for _ in range(10):
+    for _ in range(3):
         trainer = Trainer(args.config_file)
         trainer.run()
         trainer.close()

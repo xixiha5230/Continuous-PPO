@@ -17,7 +17,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     '--config',
     type=str,
-    default='PPO_logs/MountainCar-v0/test_no_rnd/run_4/config.yaml',
+    default='PPO_logs/UnityMultitask/gru_rnd/run_1/config.yaml',
     help='The config file',
 )
 parser.add_argument(
@@ -53,7 +53,7 @@ def test(args):
     # load latest checkpoint
     log_dir = f'./PPO_logs/{config.env_name}/{config.exp_name}/run_{config.run_num}'
     latest_checkpoint = max(glob.glob(f'{log_dir}/checkpoints/*'), key=os.path.getctime)
-    # latest_checkpoint = f'{log_dir}/checkpoints/500.pth'
+    latest_checkpoint = f'{log_dir}/checkpoints/200.pth'
     print(f'resume from {latest_checkpoint}')
     ppo_agent.load(latest_checkpoint)
 
@@ -64,14 +64,20 @@ def test(args):
         for ep in range(1, total_test_episodes+1):
             state = env.reset()
             if config.use_state_normailzation:
-                state = state_normalizer(state)
+                if config.multi_task:
+                    state_normalizer(state[:-1]).append(state[-1])
+                else:
+                    state = state_normalizer(state)
             h_out = ppo_agent.init_recurrent_cell_states(1)
             while True:
                 h_in = h_out
                 action, h_out = ppo_agent.eval_select_action(_obs_2_tensor(state, config.device), h_in)
                 state, _, _, info = env.step(action[0].cpu().numpy())
                 if config.use_state_normailzation:
-                    state = state_normalizer(state)
+                    if config.multi_task:
+                        state_normalizer(state[:-1]).append(state[-1])
+                    else:
+                        state = state_normalizer(state)
                 if render:
                     env.render()
                     # pygame.event.get()

@@ -6,7 +6,7 @@ from normalization.RunningMeanStd import RunningMeanStd
 
 class StateNormalizer:
     def __init__(self, space):
-        if isinstance(space, (gym_space.Tuple, gymnasium_space.Tuple)):
+        if isinstance(space, (gym_space.Tuple, gymnasium_space.Tuple, tuple)):
             self.running_ms = [RunningMeanStd(shape=s.shape) for s in space]
         else:
             self.running_ms = [RunningMeanStd(shape=space.shape)]

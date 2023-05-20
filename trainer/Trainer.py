@@ -5,6 +5,7 @@ import numpy as np
 import torch
 from gym import spaces as gym_spaces
 from gymnasium import spaces as gymnasium_spaces
+from tqdm import tqdm
 
 from algorithm.PPO import PPO
 from normalization.RewardScaling import RewardScaling
@@ -55,8 +56,9 @@ class Trainer:
         print('Step 4: Init reward scaling')
         if self.conf.use_reward_scaling:
             self.reward_scaling = [RewardScaling(1, 0.99) for _ in range(self.conf.num_workers)]
+        # TODO Multi-task in StateNormalizer
         if self.conf.use_state_normailzation:
-            self.state_normalizer = StateNormalizer(self.obs_space)
+            self.state_normalizer = StateNormalizer(self.obs_space[:-1] if self.conf.multi_task else self.obs_space)
         # TODO 热身
 
         print('Step 5: Init buffer')
@@ -155,6 +157,26 @@ class Trainer:
                 break
 
     def _reset_env(self):
+        if self.conf.use_state_normailzation:
+            print("---Pre_normalization started.---")
+            total_pre_normalization_steps = 512
+            for w, worker in enumerate(self.workers):
+                worker.child.send(('reset', None))
+            for w, worker in enumerate(self.workers):
+                o = worker.child.recv()
+                self.state_normalizer(o[:-1] if self.conf.multi_task else o)
+            for _ in tqdm(range(total_pre_normalization_steps)):
+                for w, worker in enumerate(self.workers):
+                    worker.child.send(('step', self.action_space.sample()))
+                for w, worker in enumerate(self.workers):
+                    obs_w, _, _, info = worker.child.recv()
+                    self.state_normalizer(obs_w[:-1] if self.conf.multi_task else obs_w)
+                    if info:
+                        worker.child.send(('reset', None))
+                        o = worker.child.recv()
+                        self.state_normalizer(o[:-1] if self.conf.multi_task else o)
+            print("---Pre_normalization is done.---")
+
         ''' reset all environment in workers '''
         if isinstance(self.obs_space, (gym_spaces.Tuple, gymnasium_spaces.Tuple)):
             obs = [[np.zeros(o.shape, dtype=np.float32) for o in self.obs_space] for _ in range(self.conf.num_workers)]
@@ -168,7 +190,10 @@ class Trainer:
         for w, worker in enumerate(self.workers):
             obs[w] = worker.child.recv()
             if self.conf.use_state_normailzation:
-                obs[w] = self.state_normalizer(obs[w])
+                if self.conf.multi_task:
+                    self.state_normalizer(obs[w][:-1]).append(obs[w][-1])
+                else:
+                    obs[w] = self.state_normalizer(obs[w])
         # Setup initial recurrent cell states (LSTM: tuple(tensor, tensor) or GRU: tensor)
         recurrent_cell = self.ppo_agent.init_recurrent_cell_states(self.conf.num_workers)
         # reset reward scaling
@@ -229,7 +254,10 @@ class Trainer:
             for w, worker in enumerate(self.workers):
                 obs_w, reward_w, done_w, info = worker.child.recv()
                 if self.conf.use_state_normailzation:
-                    obs_w = self.state_normalizer(obs_w)
+                    if self.conf.multi_task:
+                        self.state_normalizer(obs_w[:-1]).append(obs_w[-1])
+                    else:
+                        obs_w = self.state_normalizer(obs_w)
                 buffer_index = self.worker_2_buff[w]
                 subworker_index = self.wroker_2_buff_subw[w]
                 self.buffer[buffer_index].rewards[subworker_index, t] = self.reward_scaling[w](
@@ -244,7 +272,10 @@ class Trainer:
                     # Get data from reset
                     obs_w = worker.child.recv()
                     if self.conf.use_state_normailzation:
-                        obs_w = self.state_normalizer(obs_w)
+                        if self.conf.multi_task:
+                            self.state_normalizer(obs_w[:-1]).append(obs_w[-1])
+                        else:
+                            obs_w = self.state_normalizer(obs_w)
                     # Reset recurrent cell states
                     if self.conf.use_lstm and self.conf.reset_hidden_state:
                         rc = self.ppo_agent.init_recurrent_cell_states(1)
