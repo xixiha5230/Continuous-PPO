@@ -55,11 +55,7 @@ class GaussianActor(Actor):
             )
             nn.init.orthogonal_(self.mu[0].weight, np.sqrt(2))
             nn.init.orthogonal_(self.mu[2].weight, np.sqrt(0.01))
-            self.sigma = nn.Sequential(
-                nn.Linear(input_size, self.action_dim),
-                nn.Softplus()
-            )
-            nn.init.orthogonal_(self.sigma[0].weight, np.sqrt(0.01))
+            self.sigma = nn.Parameter(torch.zeros(1, self.action_dim))
         elif self.action_type == 'discrete':
             self.mu = nn.Sequential(
                 nn.Linear(input_size, input_size),
@@ -78,7 +74,7 @@ class GaussianActor(Actor):
         '''
         if self.action_type == 'continuous':
             action_mean = self.action_max * self.mu(feature)
-            action_std = self.sigma(feature)
+            action_std = self.sigma.exp()
             dist = Normal(action_mean, action_std)
         elif self.action_type == 'discrete':
             action_probs = self.mu(feature)
@@ -115,13 +111,10 @@ class MultiGaussianActor(Actor):
                 nn.init.orthogonal_(m[0].weight, np.sqrt(2))
                 nn.init.orthogonal_(m[2].weight, np.sqrt(0.01))
             self.m_sigma = nn.ModuleDict(
-                [[str(i), nn.Sequential(
-                    nn.Linear(input_size, self.action_dim),
-                    nn.Softplus()
-                )] for i in range(task_num)]
+                [[str(i), nn.parameter(torch.zeros(1, self.action_dim))] for i in range(task_num)]
             )
-            for _, m in self.m_sigma.items():
-                nn.init.orthogonal_(m[0].weight, np.sqrt(0.01))
+            # for _, m in self.m_sigma.items():
+            #     nn.init.orthogonal_(m[0].weight, np.sqrt(0.01))
         elif self.action_type == 'discrete':
             self.m_mu = nn.ModuleDict(
                 [[str(i), nn.Sequential(
@@ -144,7 +137,7 @@ class MultiGaussianActor(Actor):
         '''
         if self.action_type == 'continuous':
             action_mean = self.action_max * self.m_mu[str(actor_index)](feature)
-            action_std = self.m_sigma[str(actor_index)](feature)
+            action_std = self.m_sigma[str(actor_index)].exp()
             dist = Normal(action_mean, action_std)
         elif self.action_type == 'discrete':
             action_probs = self.m_mu[str(actor_index)](feature)
