@@ -25,7 +25,8 @@ class Logger:
             self.writer = tensorboardX.SummaryWriter(log_dir=self.run_log_dir)
         self.checkpoint_path = os.path.join(self.run_log_dir, 'checkpoints')
         os.makedirs(self.checkpoint_path, exist_ok=True)
-        print('save checkpoint path : ' + self.checkpoint_path)
+        if not test:
+            print('save checkpoint path : ' + self.checkpoint_path)
 
     def write_reward(self, update, i_episode, episode_result):
         if len(episode_result) > 0:

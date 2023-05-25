@@ -5,7 +5,6 @@ import time
 
 import imageio
 import torch
-import yaml
 
 from algorithm.PPO import PPO
 from utils.ConfigHelper import ConfigHelper
@@ -15,10 +14,16 @@ from utils.obs_2_tensor import _obs_2_tensor
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
-    '--config',
+    '--config_file',
     type=str,
-    default='PPO_logs/UnityMultitask/gru_rnd/run_1/config.yaml',
+    default='PPO_logs/CarRace/new_env/run_0/config.yaml',
     help='The config file',
+)
+parser.add_argument(
+    '--ckpt',
+    type=int,
+    default=0,
+    help='The checkpoint index',
 )
 parser.add_argument(
     '--save_gif',
@@ -26,18 +31,18 @@ parser.add_argument(
     default=False
 )
 
-# TODO task 增加后模型读取错误
-
 
 def test(args):
-    config = ConfigHelper(args.config)
-    logger = Logger(config.env_name, config.exp_name, config.run_num, True)
+    # TODO task 增加后模型读取错误
 
-    render = True
-    frame_delay = 0.01
+    config = ConfigHelper(args.config_file)
+    logger = Logger(config.env_name, config.exp_name, config.run_num, True, True)
+
     total_test_episodes = 1 if args.save_gif else 10
+    save_gif = args.save_gif
+    custom_ckpt = args.ckpt
 
-    env = create_env(config, render_mode='rgb_array' if args.save_gif else 'human', id=1, time_scale=1)
+    env = create_env(config, render_mode='rgb_array' if save_gif else 'human', id=1, time_scale=1)
     observation_space = env.observation_space
     if config.action_type == 'continuous':
         action_space = env.action_space
@@ -51,9 +56,9 @@ def test(args):
     ppo_agent.policy.eval()
 
     # load latest checkpoint
-    log_dir = f'./PPO_logs/{config.env_name}/{config.exp_name}/run_{config.run_num}'
-    latest_checkpoint = max(glob.glob(f'{log_dir}/checkpoints/*'), key=os.path.getctime)
-    latest_checkpoint = f'{log_dir}/checkpoints/200.pth'
+    latest_checkpoint = max(glob.glob(os.path.join(logger.checkpoint_path, '*')), key=os.path.getctime)
+    if custom_ckpt != 0:
+        latest_checkpoint = f'{logger.checkpoint_path}/{custom_ckpt}.pth'
     print(f'resume from {latest_checkpoint}')
     ppo_agent.load(latest_checkpoint)
 
@@ -78,19 +83,19 @@ def test(args):
                         state_normalizer(state[:-1]).append(state[-1])
                     else:
                         state = state_normalizer(state)
-                if render:
-                    env.render()
-                    # pygame.event.get()
-                    if args.save_gif:
-                        images.append(env.render())
-                    time.sleep(frame_delay)
+
+                env.render()
+                # pygame.event.get()
+                if save_gif:
+                    images.append(env.render())
+                time.sleep(0.01)
                 if info:
                     print(f'Episode: {ep} \t\t Reward: {info["reward"]}')
                     test_running_reward += info['reward']
                     break
 
-    if args.save_gif:
-        imageio.mimsave(f'{log_dir}/test.gif', images)
+    if save_gif:
+        imageio.mimsave(f'{logger.run_log_dir}/test.gif', images)
     env.close()
 
     print('============================================================================================')
