@@ -84,6 +84,15 @@ class GaussianActor(Actor):
         return dist
 
 
+class SigmaParameterModule(nn.Module):
+    def __init__(self, size):
+        super(SigmaParameterModule, self).__init__()
+        self.param = nn.Parameter(torch.zeros(1, size))
+
+    def exp(self):
+        return self.param.exp()
+
+
 class MultiGaussianActor(Actor):
     ''' Gaussian Multiple Actor Module '''
 
@@ -111,10 +120,8 @@ class MultiGaussianActor(Actor):
                 nn.init.orthogonal_(m[0].weight, np.sqrt(2))
                 nn.init.orthogonal_(m[2].weight, np.sqrt(0.01))
             self.m_sigma = nn.ModuleDict(
-                [[str(i), nn.parameter(torch.zeros(1, self.action_dim))] for i in range(task_num)]
+                [[str(i), SigmaParameterModule(self.action_dim)] for i in range(task_num)]
             )
-            # for _, m in self.m_sigma.items():
-            #     nn.init.orthogonal_(m[0].weight, np.sqrt(0.01))
         elif self.action_type == 'discrete':
             self.m_mu = nn.ModuleDict(
                 [[str(i), nn.Sequential(
