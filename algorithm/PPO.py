@@ -27,8 +27,6 @@ class PPO:
         self.use_rnd = config.use_rnd
         self.rnd_rate = config.rnd_rate
 
-        self.fine_tune = config.fine_tune
-
         self.policy = ActorCritic(obs_space, action_space, config).to(self.device)
         if self.multi_task:
             self.task_predict_loss = torch.nn.CrossEntropyLoss()
@@ -200,7 +198,7 @@ class PPO:
             # TODO 不argmax行不行
             # task_label =  mini_batch['obs'][-1][mini_batch['loss_mask']]
             task_label = torch.argmax(mini_batch['obs'][-1][mini_batch['loss_mask']], dim=-1)
-            task_loss = self.task_predict_loss(task_pridcit, task_label) if not self.fine_tune else 0
+            task_loss = self.task_predict_loss(task_pridcit, task_label)
             # task_loss = 0
         else:
             task_loss = 0

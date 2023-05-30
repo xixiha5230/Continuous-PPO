@@ -59,7 +59,6 @@ def test(args):
 
     # initialize a PPO agent
     ppo_agent = PPO(observation_space, action_space, config)
-    _p = PPO(observation_space, action_space, config)
     ppo_agent.policy.eval()
 
     # load latest checkpoint
@@ -69,9 +68,10 @@ def test(args):
     print(f'resume from {latest_checkpoint}')
     ppo_agent.load(latest_checkpoint)
     if args.act != 0:
+        _p = PPO(observation_space, action_space, config)
         latest_checkpoint = f'{logger.checkpoint_path}/{args.act}.pth'
-    _p.load(latest_checkpoint)
-    ppo_agent.policy.task_predict_net = _p.policy.task_predict_net
+        _p.load(latest_checkpoint)
+        ppo_agent.policy.task_predict_net = _p.policy.task_predict_net
     # start testing
     test_running_reward = 0
     images = []

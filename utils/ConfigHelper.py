@@ -45,8 +45,6 @@ class ConfigHelper:
         self.use_rnd = conf_train.setdefault('use_rnd', False)
         self.rnd_rate = conf_train.setdefault('rnd_rate', 0.5)
         self.use_state_normailzation = conf_train.setdefault('use_state_normailzation', True)
-        self.fine_tune = conf_train.setdefault('fine_tune', False)
-        self.fine_tune_steps = conf_train.setdefault('fine_tune_steps', 10)
         # PPO hyperparameters
         conf_ppo = {}
         conf_ppo: dict = self.conf.setdefault('ppo', conf_ppo)

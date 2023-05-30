@@ -13,20 +13,6 @@ from layers.TaskNet import TaskNet, TaskPredictNet
 from utils.ConfigHelper import ConfigHelper
 
 
-class mdist:
-    def __init__(self, d):
-        self.d = d
-
-    def sample(self):
-        return torch.stack([d.sample() for d in self.d]).squeeze(1)
-
-    def log_prob(self, action):
-        return torch.stack([d.log_prob(a) for d, a in zip(self.d, action)]).squeeze(1)
-
-    def entropy(self):
-        return torch.stack([d.entropy() for d in self.d]).squeeze(1)
-
-
 class ActorCritic(nn.Module):
     ''' Actor Critic Module '''
 
@@ -43,7 +29,6 @@ class ActorCritic(nn.Module):
         self.use_rnd = config.use_rnd
         self.use_lstm = config.use_lstm
         self.obs_space = obs_space
-        self.finetune = config.fine_tune
 
         # Observation feature extraction
         if isinstance(obs_space, (gym_spaces.Tuple, gymnasium_spaces.Tuple)) and obs_space[0].shape == (84, 84, 3) and obs_space[1].shape == (400,):
