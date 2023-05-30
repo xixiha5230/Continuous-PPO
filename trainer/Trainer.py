@@ -104,7 +104,7 @@ class Trainer:
 
         for self.conf.update in range(self.conf.update, self.conf.max_updates+1):
             # Parameter decay
-            learning_rate, clip_range, entropy_coeff = get_decay(self.conf)
+            learning_rate, clip_range, entropy_coeff, task_coeff = get_decay(self.conf)
 
             # Sample training data
             sampled_episode_info = self._sample_training_data()
@@ -119,7 +119,7 @@ class Trainer:
                 mini_batch_generator = self._multi_buff_mini_batch_generator()
                 for mini_batch in mini_batch_generator:
                     losses = self.ppo_agent.train_mini_batch(
-                        learning_rate, clip_range, entropy_coeff, mini_batch, self.actual_sequence_length)
+                        learning_rate, clip_range, entropy_coeff, task_coeff, mini_batch, self.actual_sequence_length)
                     actor_losses.append(losses[0])
                     critic_losses.append(losses[1])
                     total_losses.append(losses[2])
@@ -133,7 +133,7 @@ class Trainer:
             self.conf.i_episode += len(sampled_episode_info)
             episode_result = Trainer._process_episode_info(sampled_episode_info)
             self.logger.write_tensorboard((actor_losses, critic_losses, total_losses, dist_entropys, task_losses, rnd_losses,
-                                           learning_rate, clip_range, entropy_coeff,  episode_result,
+                                           learning_rate, clip_range, entropy_coeff, task_coeff,  episode_result,
                                            np.mean([b.rewards for b in self.buffer]),
                                            np.mean([b.rnd_rewards for b in self.buffer]) if self.conf.use_rnd else None),
                                           self.conf.update)

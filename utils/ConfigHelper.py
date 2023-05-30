@@ -45,7 +45,8 @@ class ConfigHelper:
         self.use_rnd = conf_train.setdefault('use_rnd', False)
         self.rnd_rate = conf_train.setdefault('rnd_rate', 0.5)
         self.use_state_normailzation = conf_train.setdefault('use_state_normailzation', True)
-
+        self.fine_tune = conf_train.setdefault('fine_tune', False)
+        self.fine_tune_steps = conf_train.setdefault('fine_tune_steps', 10)
         # PPO hyperparameters
         conf_ppo = {}
         conf_ppo: dict = self.conf.setdefault('ppo', conf_ppo)
@@ -70,6 +71,12 @@ class ConfigHelper:
         self.clip_range_schedule.setdefault('final', 0.2)
         self.clip_range_schedule.setdefault('pow', 1.0)
         self.clip_range_schedule.setdefault('max_decay_steps', 0)
+        self.task_schedule = {}
+        self.task_schedule: dict = conf_ppo.setdefault('task_schedule', self.task_schedule)
+        self.task_schedule.setdefault('init', 1)
+        self.task_schedule.setdefault('final', 0)
+        self.task_schedule.setdefault('pow', 1.0)
+        self.task_schedule.setdefault('max_decay_steps', 100)
 
         # LSTM hyperparameters
         recurrence = {}

@@ -27,6 +27,8 @@ class PPO:
         self.use_rnd = config.use_rnd
         self.rnd_rate = config.rnd_rate
 
+        self.fine_tune = config.fine_tune
+
         self.policy = ActorCritic(obs_space, action_space, config).to(self.device)
         if self.multi_task:
             self.task_predict_loss = torch.nn.CrossEntropyLoss()
@@ -98,7 +100,7 @@ class PPO:
         dist_entropy = dist.entropy()
         return action_logprob, value, rnd_value, dist_entropy, task_predict
 
-    def train_mini_batch(self, learning_rate: float, clip_range: float, entropy_coeff: float, mini_batch: dict, sequence_length: int) -> list:
+    def train_mini_batch(self, learning_rate: float, clip_range: float, entropy_coeff: float, task_coeff: float, mini_batch: dict, sequence_length: int) -> list:
         '''Uses one mini batch to optimize the model.
         Args:
             learning_rate {float} -- Current learning rate
@@ -109,9 +111,9 @@ class PPO:
         Returns:
             {tuple} -- tuple of trainig statistics (e.g. loss)
         '''
-        
+
         multi_task_results = [self._train_mini_batch(
-            clip_range, entropy_coeff, task_mini_batch, sequence_length, mudule_index) for mudule_index, task_mini_batch in enumerate(mini_batch)]
+            clip_range, entropy_coeff, task_coeff, task_mini_batch, sequence_length, mudule_index) for mudule_index, task_mini_batch in enumerate(mini_batch)]
         multi_task_results = list(zip(*multi_task_results))
         # TODO maybe use sum(x) * (1.0 / len(x))
         policy_loss, vf_loss, entropy_bonus, task_loss, rnd_loss, loss = map(lambda x: sum(x), multi_task_results)
@@ -131,7 +133,7 @@ class PPO:
                 task_loss.item() if task_loss != 0 else None,
                 rnd_loss.item() if rnd_loss != 0 else None,)
 
-    def _train_mini_batch(self, clip_range: float, entropy_coeff: float, mini_batch: dict, sequence_length: int, module_index: int = 0):
+    def _train_mini_batch(self, clip_range: float, entropy_coeff: float, task_coeff: float, mini_batch: dict, sequence_length: int, module_index: int = 0):
         '''Uses one mini batch to optimize the model.
         Args:
             clip_range {float} -- Current clip range
@@ -195,15 +197,16 @@ class PPO:
 
         # Task predictor loss
         if self.multi_task:
-            #TODO 不argmax行不行
+            # TODO 不argmax行不行
             # task_label =  mini_batch['obs'][-1][mini_batch['loss_mask']]
             task_label = torch.argmax(mini_batch['obs'][-1][mini_batch['loss_mask']], dim=-1)
-            task_loss = self.task_predict_loss(task_pridcit, task_label)
+            task_loss = self.task_predict_loss(task_pridcit, task_label) if not self.fine_tune else 0
+            # task_loss = 0
         else:
             task_loss = 0
 
         # Complete total loss
-        total_loss = -policy_loss + self.vf_loss_coeff * vf_loss - entropy_coeff * entropy_bonus + task_loss + rnd_loss
+        total_loss = -policy_loss + self.vf_loss_coeff * vf_loss - entropy_coeff * entropy_bonus + task_loss*task_coeff
         return policy_loss, vf_loss, entropy_bonus, task_loss, rnd_loss, total_loss
 
     def save(self, checkpoint_path: str):

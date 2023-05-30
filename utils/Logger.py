@@ -65,6 +65,7 @@ class Logger:
          learning_rate,
          clip_range,
          entropy_coeff,
+         task_coeff,
          episode_result,
          scaled_rewards,
          mean_rnd_reward) = datas
@@ -80,6 +81,7 @@ class Logger:
         self.writer.add_scalar('Parameter/learning_rate', learning_rate, update)
         self.writer.add_scalar('Parameter/clip_range', clip_range, update)
         self.writer.add_scalar('Parameter/entropy_coeff', entropy_coeff, update)
+        self.writer.add_scalar('Parameter/task_coeff', task_coeff, update)
         if mean_rnd_reward != None:
             self.writer.add_scalar('Train/rnd_reward_mean', mean_rnd_reward, update)
         if(len(episode_result) > 0):

@@ -26,6 +26,12 @@ parser.add_argument(
     help='The checkpoint index',
 )
 parser.add_argument(
+    '--act',
+    type=int,
+    default=0,
+    help='The checkpoint index',
+)
+parser.add_argument(
     '--save_gif',
     type=bool,
     default=False
@@ -42,7 +48,7 @@ def test(args):
     save_gif = args.save_gif
     custom_ckpt = args.ckpt
 
-    env = create_env(config, render_mode='rgb_array' if save_gif else 'human', id=1, time_scale=1)
+    env = create_env(config, render_mode='rgb_array' if save_gif else 'human', id=51, time_scale=1)
     observation_space = env.observation_space
     if config.action_type == 'continuous':
         action_space = env.action_space
@@ -53,6 +59,7 @@ def test(args):
 
     # initialize a PPO agent
     ppo_agent = PPO(observation_space, action_space, config)
+    _p = PPO(observation_space, action_space, config)
     ppo_agent.policy.eval()
 
     # load latest checkpoint
@@ -61,7 +68,10 @@ def test(args):
         latest_checkpoint = f'{logger.checkpoint_path}/{custom_ckpt}.pth'
     print(f'resume from {latest_checkpoint}')
     ppo_agent.load(latest_checkpoint)
-
+    if args.act != 0:
+        latest_checkpoint = f'{logger.checkpoint_path}/{args.act}.pth'
+    _p.load(latest_checkpoint)
+    ppo_agent.policy.task_predict_net = _p.policy.task_predict_net
     # start testing
     test_running_reward = 0
     images = []

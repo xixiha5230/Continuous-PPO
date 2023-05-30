@@ -27,7 +27,7 @@ train:
   K_epochs: 4
   device: cuda
   env_name: UnityMultitask
-  exp_name: gru_seq16_rnd_0.5
+  exp_name: gru_test_auto
   action_type: continuous
   hidden_layer_size: 512
   max_updates: 2000
@@ -38,11 +38,13 @@ train:
   use_state_normailzation: false
   use_rnd: false
   rnd_rate: 0.5
+  fine_tune: false
+  fine_tune_steps: 0
 worker:
   num_workers: 6
   worker_steps: 512
 task:
   [
-    { "one_hot": [1, 0, 0, 0], "file_name": "UnityEnvs/UnityMultitask/Task0" },
-    { "one_hot": [0, 1, 0, 0], "file_name": "UnityEnvs/UnityMultitask/Task1" },
+    { "one_hot": [1, 0], "file_name": "UnityEnvs/UnityMultitask/Task0" },
+    { "one_hot": [0, 1], "file_name": "UnityEnvs/UnityMultitask/Task1" },
   ]

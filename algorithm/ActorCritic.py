@@ -13,6 +13,20 @@ from layers.TaskNet import TaskNet, TaskPredictNet
 from utils.ConfigHelper import ConfigHelper
 
 
+class mdist:
+    def __init__(self, d):
+        self.d = d
+
+    def sample(self):
+        return torch.stack([d.sample() for d in self.d]).squeeze(1)
+
+    def log_prob(self, action):
+        return torch.stack([d.log_prob(a) for d, a in zip(self.d, action)]).squeeze(1)
+
+    def entropy(self):
+        return torch.stack([d.entropy() for d in self.d]).squeeze(1)
+
+
 class ActorCritic(nn.Module):
     ''' Actor Critic Module '''
 
@@ -29,6 +43,7 @@ class ActorCritic(nn.Module):
         self.use_rnd = config.use_rnd
         self.use_lstm = config.use_lstm
         self.obs_space = obs_space
+        self.finetune = config.fine_tune
 
         # Observation feature extraction
         if isinstance(obs_space, (gym_spaces.Tuple, gymnasium_spaces.Tuple)) and obs_space[0].shape == (84, 84, 3) and obs_space[1].shape == (400,):
@@ -106,9 +121,11 @@ class ActorCritic(nn.Module):
         feature = self.hidden_net(feature)
 
         if self.multi_task:
+            task_predict = self.task_predict_net(feature)
+            # if self.finetune:
+            module_index = task_predict
             dist = self.actor(feature, module_index)
             value, rnd_value = self.critic(torch.cat((feature, task_feature), -1))
-            task_predict = self.task_predict_net(feature)
         else:
             dist = self.actor(feature)
             value, rnd_value = self.critic(feature)
@@ -147,11 +164,10 @@ class ActorCritic(nn.Module):
         feature = self.hidden_net(feature)
 
         if self.multi_task:
-            if module_index == -1:
-                task_predict = self.task_predict_net(feature)
-                module_index = torch.argmax(task_predict).item()
-                print(module_index)
-            dist = self.actor(feature, module_index)
+            task_predict = self.task_predict_net(feature)
+            # module_index = torch.argmax(task_predict).item()
+            print(task_predict)
+            dist = self.actor(feature, task_predict)
         else:
             dist = self.actor(feature)
 

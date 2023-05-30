@@ -8,7 +8,9 @@ def get_decay(conf: ConfigHelper):
                                   conf.clip_range_schedule['max_decay_steps'], conf.clip_range_schedule['pow'], conf.update)
     entropy_coeff = polynomial_decay(conf.entropy_coeff_schedule['init'], conf.entropy_coeff_schedule['final'],
                                      conf.entropy_coeff_schedule['max_decay_steps'], conf.entropy_coeff_schedule['pow'], conf.update)
-    return learning_rate, clip_range, entropy_coeff
+    task_coeff = polynomial_decay(conf.task_schedule['init'], conf.task_schedule['final'],
+                                  conf.task_schedule['max_decay_steps'], conf.task_schedule['pow'], conf.update)
+    return learning_rate, clip_range, entropy_coeff, task_coeff
 
 
 def polynomial_decay(initial: float, final: float, max_decay_steps: int, pow: float, current_step: int) -> float:

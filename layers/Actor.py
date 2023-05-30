@@ -143,8 +143,16 @@ class MultiGaussianActor(Actor):
             actor_index {int} -- module {actor[actor_index]} will be select to forward
         '''
         if self.action_type == 'continuous':
-            action_mean = self.action_max * self.m_mu[str(actor_index)](feature)
-            action_std = self.m_sigma[str(actor_index)].exp()
+            if isinstance(actor_index, torch.Tensor):
+                max_value, _ = torch.max(actor_index, dim=-1)
+                mask = torch.eq(actor_index, max_value.unsqueeze(-1))
+                action_mean = torch.sum(torch.stack([self.action_max * m(feature) * mask[:, int(i)].unsqueeze(-1)
+                                                     for i, m in self.m_mu.items()]), dim=0)
+                action_std = torch.sum(torch.stack([m.exp() * mask[:, int(i)].unsqueeze(-1)
+                                                    for i, m in self.m_sigma.items()]), dim=0)
+            else:
+                action_mean = self.action_max * self.m_mu[str(actor_index)](feature)
+                action_std = self.m_sigma[str(actor_index)].exp()
             dist = Normal(action_mean, action_std)
         elif self.action_type == 'discrete':
             action_probs = self.m_mu[str(actor_index)](feature)
