@@ -26,7 +26,7 @@ parser.add_argument(
     help='The checkpoint index',
 )
 parser.add_argument(
-    '--rm_rmm',
+    '--rm_rnn',
     type=int,
     default=0,
     help='The checkpoint index',
@@ -67,11 +67,6 @@ def test(args):
         latest_checkpoint = f'{logger.checkpoint_path}/{custom_ckpt}.pth'
     print(f'resume from {latest_checkpoint}')
     ppo_agent.load(latest_checkpoint)
-    if args.act != 0:
-        _p = PPO(observation_space, action_space, config)
-        latest_checkpoint = f'{logger.checkpoint_path}/{args.act}.pth'
-        _p.load(latest_checkpoint)
-        ppo_agent.policy.task_predict_net = _p.policy.task_predict_net
     # start testing
     test_running_reward = 0
     images = []
@@ -91,7 +86,6 @@ def test(args):
                 step += 1
                 if(args.rm_rnn != 0 and step % args.rm_rnn == 0):
                     h_out = ppo_agent.init_recurrent_cell_states(1)
-                    print("***del***")
                 state, _, _, info = env.step(action[0].cpu().numpy())
                 if config.use_state_normailzation:
                     if config.multi_task:
