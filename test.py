@@ -26,7 +26,7 @@ parser.add_argument(
     help='The checkpoint index',
 )
 parser.add_argument(
-    '--act',
+    '--rm_rmm',
     type=int,
     default=0,
     help='The checkpoint index',
@@ -84,9 +84,14 @@ def test(args):
                 else:
                     state = state_normalizer(state)
             h_out = ppo_agent.init_recurrent_cell_states(1)
+            step = 0
             while True:
                 h_in = h_out
                 action, h_out = ppo_agent.eval_select_action(_obs_2_tensor(state, config.device), h_in)
+                step += 1
+                if(args.rm_rnn != 0 and step % args.rm_rnn == 0):
+                    h_out = ppo_agent.init_recurrent_cell_states(1)
+                    print("***del***")
                 state, _, _, info = env.step(action[0].cpu().numpy())
                 if config.use_state_normailzation:
                     if config.multi_task:

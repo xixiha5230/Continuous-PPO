@@ -57,7 +57,7 @@ class ActorCritic(nn.Module):
             assert self.task_num > 0
             self.task_net = TaskNet(self.obs_space[-1].shape[0], 16)
             self.task_feature_size = self.task_net.output_size
-            self.task_predict_net = TaskPredictNet(self.hidden_layer_size, 64, self.task_num)
+            self.task_predict_net = TaskPredictNet(self.obs_net.output_size, 128, self.task_num)
 
         # RNN
         if self.use_lstm:
@@ -97,6 +97,7 @@ class ActorCritic(nn.Module):
             feature = obs
 
         feature = self.obs_net(feature) if hasattr(self, 'obs_net') else obs[0]
+        obs_feature = feature
 
         if self.use_lstm:
             feature, hidden_out = self.rnn_net(feature, hidden_in, sequence_length)
@@ -106,7 +107,7 @@ class ActorCritic(nn.Module):
         feature = self.hidden_net(feature)
 
         if self.multi_task:
-            task_predict = self.task_predict_net(feature)
+            task_predict = self.task_predict_net(obs_feature)
             # if self.finetune:
             module_index = task_predict
             dist = self.actor(feature, module_index)
@@ -141,6 +142,7 @@ class ActorCritic(nn.Module):
         else:
             if isinstance(feature, list):
                 feature = feature[0]
+        obs_feature = feature
         if self.use_lstm:
             feature, hidden_out = self.rnn_net(feature, hidden_in, sequence_length)
         else:
@@ -149,7 +151,7 @@ class ActorCritic(nn.Module):
         feature = self.hidden_net(feature)
 
         if self.multi_task:
-            task_predict = self.task_predict_net(feature)
+            task_predict = self.task_predict_net(obs_feature)
             # module_index = torch.argmax(task_predict).item()
             print(task_predict)
             dist = self.actor(feature, task_predict)
