@@ -1,3 +1,4 @@
+from envs.AdroitHandHammer import AdroitHandHammer
 from envs.CarRacing import CarRacing
 from envs.CartPole import CartPole
 from envs.HalfCheetah.HalfCheetahDir import HalfCheetahDir
@@ -62,5 +63,7 @@ def create_env(conf: ConfigHelper, id: int = 0, render_mode=None, time_scale=2):
     elif env_name == 'Pyramids':
         from envs.Pyramids import Pyramids
         return Pyramids(f'./UnityEnvs/{env_name}', id, time_scale)
+    elif env_name == 'AdroitHandHammer-v1':
+        return AdroitHandHammer(render_mode=render_mode)
     else:
         raise f'Unknow env: {env_name}'
