@@ -194,6 +194,7 @@ class ActorCritic(nn.Module):
             # print(task_predict)
             dist = self.actor(feature, task_predict)
         else:
+            task_predict = None
             dist = self.actor(feature)
 
-        return dist, hidden_out
+        return dist, hidden_out, task_predict
