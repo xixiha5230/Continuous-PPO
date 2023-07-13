@@ -5,15 +5,17 @@ from minigrid.wrappers import RGBImgPartialObsWrapper
 
 
 class Minigrid:
-    ''' Gym Minigrid environment '''
+    """Gym Minigrid environment"""
 
     def __init__(self, env_name, render_mode=None):
-        '''
+        """
         Args:
             name {str} -- name of diffrent Minigrid version
             render_mode {str} -- render mode: humnan or rgb_array
-        '''
-        self._old_env = gymnasium.make(env_name, render_mode=render_mode, agent_view_size=3)
+        """
+        self._old_env = gymnasium.make(
+            env_name, render_mode=render_mode, agent_view_size=3
+        )
         self._env = RGBImgPartialObsWrapper(self._old_env, 28)
         self._observation_space = Box(0, 1.0, (84, 84, 3))
 
@@ -37,8 +39,7 @@ class Minigrid:
         self._rewards.append(reward)
         done = terminated or truncated
         if done:
-            info = {'reward': sum(self._rewards),
-                    'length': len(self._rewards)}
+            info = {"reward": sum(self._rewards), "length": len(self._rewards)}
         else:
             info = None
         return obs, reward, done, info
@@ -50,14 +51,14 @@ class Minigrid:
         self._env.close()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import time
 
     import cv2
 
     cv2.namedWindow("obs", 0)
     cv2.resizeWindow("obs", 300, 300)
-    env = Minigrid('MiniGrid-MemoryS17Random-v0', render_mode='human')
+    env = Minigrid("MiniGrid-MemoryS17Random-v0", render_mode="human")
     done = True
     while True:
         if done:
@@ -65,6 +66,6 @@ if __name__ == '__main__':
         action = env.action_space.sample()
         obs, reward, done, info = env.step(action)
 
-        cv2.imshow('obs', obs)
+        cv2.imshow("obs", obs)
         cv2.waitKey(1)
         time.sleep(1)

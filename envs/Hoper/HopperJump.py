@@ -2,14 +2,14 @@ import mo_gymnasium
 
 
 class HopperJump:
-    ''' MO Gym HopperJump environment '''
+    """MO Gym HopperJump environment"""
 
     def __init__(self, env_name, render_mode=None):
-        '''
+        """
         Args:
             name {str} -- name of diffrent version
             render_mode {str} -- render mode: humnan or rgb_array
-        '''
+        """
         self._env = mo_gymnasium.make(env_name, render_mode=render_mode)
 
     @property
@@ -31,8 +31,7 @@ class HopperJump:
         self._rewards.append(reward)
         done = terminated or truncated
         if done:
-            info = {'reward': sum(self._rewards),
-                    'length': len(self._rewards)}
+            info = {"reward": sum(self._rewards), "length": len(self._rewards)}
         else:
             info = None
         # jump in place
@@ -46,8 +45,8 @@ class HopperJump:
         self._env.close()
 
 
-if __name__ == '__main__':
-    env = HopperJump('mo-hopper-v4', render_mode='human')
+if __name__ == "__main__":
+    env = HopperJump("mo-hopper-v4", render_mode="human")
     done = True
     while True:
         if done:

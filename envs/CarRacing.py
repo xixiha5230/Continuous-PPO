@@ -2,17 +2,20 @@ import gymnasium
 
 
 class CarRacing:
-    ''' Gym car racing environment '''
+    """Gym car racing environment"""
 
     def __init__(self, action_type: str, render_mode: str = None):
-        '''
+        """
         Args:
             action_type {str} -- action type: continuous or discrete
             render_mode {str} -- render mode: humnan or rgb_array
-        '''
-        self._env = gymnasium.make('CarRacing-v2', domain_randomize=False,
-                                   continuous=True if action_type == 'continuous' else False,
-                                   render_mode=render_mode)
+        """
+        self._env = gymnasium.make(
+            "CarRacing-v2",
+            domain_randomize=False,
+            continuous=True if action_type == "continuous" else False,
+            render_mode=render_mode,
+        )
 
     @property
     def observation_space(self):
@@ -34,8 +37,7 @@ class CarRacing:
         self._rewards.append(reward)
         done = terminated or truncated
         if done:
-            info = {'reward': sum(self._rewards),
-                    'length': len(self._rewards)}
+            info = {"reward": sum(self._rewards), "length": len(self._rewards)}
         else:
             info = None
         return obs, reward, done, info

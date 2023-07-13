@@ -2,14 +2,14 @@ import gymnasium
 
 
 class CartPole:
-    ''' Gym CartPole environment '''
+    """Gym CartPole environment"""
 
     def __init__(self, name, render_mode=None):
-        '''
+        """
         Args:
             name {str} -- name of diffrent version
             render_mode {str} -- render mode: humnan or rgb_array
-        '''
+        """
         self._env = gymnasium.make(name, render_mode=render_mode)
 
     @property
@@ -30,8 +30,7 @@ class CartPole:
         self._rewards.append(reward)
         done = terminated or truncated
         if done:
-            info = {'reward': sum(self._rewards),
-                    'length': len(self._rewards)}
+            info = {"reward": sum(self._rewards), "length": len(self._rewards)}
         else:
             info = None
         return obs, reward, done, info

@@ -48,4 +48,4 @@ class RNDRewardScaling:
                 rewems = rewems * self.gamma + rewards[worker][step]
                 intrinsic_returns[worker].insert(0, rewems)
         self.update(np.ravel(intrinsic_returns).reshape(-1, 1))
-        return rewards / (self.var ** 0.5)
+        return rewards / (self.var**0.5)

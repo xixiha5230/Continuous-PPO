@@ -2,14 +2,14 @@ import gymnasium
 
 
 class MountainCar:
-    ''' Gym MountainCar environment '''
+    """Gym MountainCar environment"""
 
     def __init__(self, env_name, render_mode=None):
-        '''
+        """
         Args:
             name {str} -- name of diffrent version
             render_mode {str} -- render mode: humnan or rgb_array
-        '''
+        """
         self._env = gymnasium.make(env_name, render_mode=render_mode)
 
     @property
@@ -31,8 +31,7 @@ class MountainCar:
         self._rewards.append(reward)
         done = terminated or truncated
         if done:
-            info = {'reward': sum(self._rewards),
-                    'length': len(self._rewards)}
+            info = {"reward": sum(self._rewards), "length": len(self._rewards)}
         else:
             info = None
         return [obs], reward, done, info

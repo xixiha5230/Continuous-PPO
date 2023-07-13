@@ -2,16 +2,16 @@ import gymnasium
 
 
 class AdroitHandHammer:
-    ''' Gym AdroitHandHammer environment '''
+    """Gym AdroitHandHammer environment"""
 
     def __init__(self, render_mode=None):
-        '''
+        """
         Args:
             render_mode {str} -- render mode: humnan or rgb_array
-        '''
-        self._env = gymnasium.make('AdroitHandHammer-v1',
-                                   max_episode_steps=400,
-                                   render_mode=render_mode)
+        """
+        self._env = gymnasium.make(
+            "AdroitHandHammer-v1", max_episode_steps=400, render_mode=render_mode
+        )
 
     @property
     def observation_space(self):
@@ -32,8 +32,7 @@ class AdroitHandHammer:
         self._rewards.append(reward)
         done = terminated or truncated
         if done:
-            info = {'reward': sum(self._rewards),
-                    'length': len(self._rewards)}
+            info = {"reward": sum(self._rewards), "length": len(self._rewards)}
         else:
             info = None
         return [obs], reward, done, info
