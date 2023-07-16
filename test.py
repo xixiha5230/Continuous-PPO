@@ -61,6 +61,7 @@ def test(args):
         latest_checkpoint = f"{logger.checkpoint_path}/{custom_ckpt}.pth"
     print(f"resume from {latest_checkpoint}")
     ppo_agent.load(latest_checkpoint)
+    ppo_agent.policy.eval()
 
     # start testing
     test_running_reward = 0
