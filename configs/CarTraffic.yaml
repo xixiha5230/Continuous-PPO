@@ -10,10 +10,10 @@ ppo:
     pow: 1.0
     max_decay_steps: 0
   lr_schedule:
-    init: 6.0e-5
-    final: 6.0e-5
+    init: 1.0e-4
+    final: 1.0e-6
     pow: 1.0
-    max_decay_steps: 0
+    max_decay_steps: 2000
   task_schedule:
     init: 0
     final: 0
@@ -32,7 +32,7 @@ train:
   K_epochs: 4
   device: cuda
   env_name: CarTraffic
-  exp_name: FixedEnv_6e-5
+  exp_name: Fixed_lr
   action_type: continuous
   hidden_layer_size: 512
   max_updates: 10000
