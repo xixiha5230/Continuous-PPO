@@ -160,7 +160,8 @@ class ObsNetImage(nn.Module):
         Args:
             obs {torch.Tensor} -- tensor of image
         """
-        obs = obs[0]
+        if isinstance(obs, list):
+            obs = obs[0]
         if len(obs.shape) == 3:
             obs = obs.unsqueeze(0)
         x = self.conv2d(obs)

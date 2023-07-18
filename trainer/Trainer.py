@@ -57,28 +57,33 @@ class Trainer:
         )
         _dummy_env.close()
 
-        print("Step 4: Init reward scaling")
-        if self.conf.use_reward_scaling:
-            self.reward_scaling = [
-                RewardScaling(1, 0.99) for _ in range(self.conf.num_workers)
+        print("Step 4: Init reward scaling and state normalizer")
+        self.reward_scaling = (
+            [RewardScaling(1, 0.99) for _ in range(self.conf.num_workers)]
+            if self.conf.use_reward_scaling
+            else None
+        )
+        self.rnd_scaling = (
+            [
+                RNDRewardScaling(shape=(1,), config=self.conf)
+                for _ in range(self.conf.task_num)
             ]
-        # TODO Multi-task in StateNormalizer
-        if self.conf.use_state_normailzation:
-            self.state_normalizer = StateNormalizer(
+            if self.conf.use_rnd
+            else None
+        )
+        self.state_normalizer = (
+            StateNormalizer(
                 self.obs_space[:-1] if self.conf.multi_task else self.obs_space
             )
-        # TODO 热身
+            if self.conf.use_state_normailzation
+            else None
+        )
 
         print("Step 5: Init buffer")
         self.buffer = [
             Buffer(self.conf, self.obs_space, self.action_space)
             for _ in range(self.conf.task_num)
         ]
-        if self.conf.use_rnd:
-            self.rnd_scaling = [
-                RNDRewardScaling(shape=(1,), config=self.conf)
-                for _ in range(len(self.buffer))
-            ]
 
         print("Step 6: Init model and optimizer")
         self.ppo_agent = PPO(self.obs_space, self.action_space, self.conf)
@@ -227,36 +232,32 @@ class Trainer:
             print("---Pre_normalization is done.---")
 
         """ reset all environment in workers """
-        if isinstance(self.obs_space, (gym_spaces.Tuple, gymnasium_spaces.Tuple)):
-            obs = [
-                [np.zeros(o.shape, dtype=np.float32) for o in self.obs_space]
-                for _ in range(self.conf.num_workers)
-            ]
-        else:
-            obs = [
-                [np.zeros(self.obs_space.shape, dtype=np.float32)]
-                for _ in range(self.conf.num_workers)
-            ]
-
+        assert isinstance(self.obs_space, (gym_spaces.Tuple, gymnasium_spaces.Tuple))
+        obs = [
+            np.zeros((self.conf.num_workers,) + o.shape, dtype=np.float32)
+            for o in self.obs_space
+        ]
         # reset env
         for worker in self.workers:
             worker.child.send(("reset", None))
         # Grab initial observations and store them in their respective placeholder location
         for w, worker in enumerate(self.workers):
-            obs[w] = worker.child.recv()
-            if self.conf.use_state_normailzation:
+            o = worker.child.recv()
+            if self.state_normalizer is not None:
                 if self.conf.multi_task:
-                    self.state_normalizer(obs[w][:-1]).append(obs[w][-1])
+                    o = self.state_normalizer(o[:-1]).append(o[-1])
                 else:
-                    obs[w] = self.state_normalizer(obs[w])
+                    o = self.state_normalizer(o)
+            for i, o_ in enumerate(o):
+                obs[i][w] = o_
+
         # Setup initial recurrent cell states (LSTM: tuple(tensor, tensor) or GRU: tensor)
         recurrent_cell = self.ppo_agent.init_recurrent_cell_states(
             self.conf.num_workers
         )
         # reset reward scaling
-        if self.conf.use_reward_scaling:
-            for rs in self.reward_scaling:
-                rs.reset()
+        if self.reward_scaling is not None:
+            [rs.reset() for rs in self.reward_scaling]
         return obs, recurrent_cell
 
     def _sample_training_data(self) -> list:
@@ -289,9 +290,8 @@ class Trainer:
                 ]
 
                 for i, m in enumerate(self.buffer_mask):
-                    self.buffer[i].obs[t] = [
-                        torch.index_select(v, 0, m) for v in reordered_state_t
-                    ]
+                    for _b, _s in zip(self.buffer[i].obs, reordered_state_t):
+                        _b[:, t] = torch.index_select(_s, 0, m)
 
                 if self.conf.use_lstm:
                     for i, m in enumerate(self.buffer_mask):
@@ -338,9 +338,9 @@ class Trainer:
             # Retrieve step results from the environments
             for w, worker in enumerate(self.workers):
                 obs_w, reward_w, done_w, info = worker.child.recv()
-                if self.conf.use_state_normailzation:
+                if self.state_normalizer is not None:
                     if self.conf.multi_task:
-                        self.state_normalizer(obs_w[:-1]).append(obs_w[-1])
+                        obs_w = self.state_normalizer(obs_w[:-1]).append(obs_w[-1])
                     else:
                         obs_w = self.state_normalizer(obs_w)
                 buffer_index = self.worker_2_buff[w]
@@ -361,7 +361,7 @@ class Trainer:
                     obs_w = worker.child.recv()
                     if self.conf.use_state_normailzation:
                         if self.conf.multi_task:
-                            self.state_normalizer(obs_w[:-1]).append(obs_w[-1])
+                            obs_w = self.state_normalizer(obs_w[:-1]).append(obs_w[-1])
                         else:
                             obs_w = self.state_normalizer(obs_w)
                     # Reset recurrent cell states
@@ -379,7 +379,8 @@ class Trainer:
                         self.reward_scaling[w].reset()
 
                 # Store latest observations
-                self.obs[w] = obs_w
+                for i, o in enumerate(obs_w):
+                    self.obs[i][w] = o
 
             # save next obs in buffer for rnd
             if self.conf.use_rnd:
@@ -480,8 +481,8 @@ class Trainer:
                 for val in unique_indices
             ]
         else:
-            mask = [torch.tensor(np.arange(self.conf.num_workers)).to(self.conf.device)]
             indices = [0 for _ in range(self.conf.num_workers)]
+            mask = [torch.tensor(np.arange(self.conf.num_workers)).to(self.conf.device)]
         reward_worker_map = {}
         for w in range(self.conf.num_workers):
             reward_worker_map[w] = torch.where(torch.stack(mask, dim=0) == w)[1].item()

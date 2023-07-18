@@ -10,12 +10,6 @@ def _obs_2_tensor(obs: list, device: str):
     Returns:
         {torch.Tensor} -- tensor of state
     """
-    if isinstance(obs, list):
-        if not isinstance(obs[0], list):
-            obs = [obs]
-        obs = list(map(lambda x: torch.FloatTensor(np.array(x)).to(device), zip(*obs)))
-    elif isinstance(obs, np.ndarray):
-        if len(obs.shape) == 1:
-            obs = [obs]
-        obs = torch.FloatTensor(np.array(obs)).to(device)
+    assert isinstance(obs, list)
+    obs = [torch.FloatTensor(np.array(o)).to(device) for o in obs]
     return obs

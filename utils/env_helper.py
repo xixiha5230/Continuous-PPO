@@ -12,7 +12,7 @@ from envs.Walker2d import Walker2d
 from utils.ConfigHelper import ConfigHelper
 
 
-def create_env(conf: ConfigHelper, id: int = 0, render_mode=None, time_scale=2):
+def create_env(conf: ConfigHelper, id: int = 0, render_mode=None, time_scale=100):
     """Initializes an environment based on the provided environment name.
 
     Args:
