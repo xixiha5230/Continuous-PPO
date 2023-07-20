@@ -6,8 +6,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     "--config_file",
     type=str,
-    default="configs/UnityMultitask.yaml",
-    # default="PPO_logs/UnityMultitask/gru_seq16/run_0/config.yaml",
+    default="configs/xx.yaml",
     help="The config file",
 )
 

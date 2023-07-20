@@ -10,8 +10,8 @@ ppo:
     pow: 1.0
     max_decay_steps: 0
   lr_schedule:
-    init: 3.0e-4
-    final: 3.0e-4
+    init: 6.0e-5
+    final: 6.0e-5
     pow: 1.0
     max_decay_steps: 0
   gamma: 0.99
@@ -26,11 +26,11 @@ recurrence:
 train:
   K_epochs: 4
   device: cuda
-  env_name: CarSearch_NoReset
-  exp_name: lstm_continuous
+  env_name: CarSearch
+  exp_name: lr_6e-5
   action_type: continuous
   hidden_layer_size: 512
-  max_updates: 1000
+  max_updates: 5000
   num_mini_batch: 8
   random_seed: 0
   save_model_freq: 10

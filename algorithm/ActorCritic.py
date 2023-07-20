@@ -33,7 +33,7 @@ class ActorCritic(nn.Module):
         # Observation feature extraction
         if (
             isinstance(obs_space, (gym_spaces.Tuple, gymnasium_spaces.Tuple))
-            and len(obs_space) > 2
+            and len(obs_space) >= 2
             and obs_space[0].shape == (84, 84, 3)
             and obs_space[1].shape == (400,)
         ):

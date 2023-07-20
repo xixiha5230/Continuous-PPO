@@ -61,12 +61,10 @@ class Trainer:
         self.reward_scaling = [
             RewardScaling(1, 0.99, self.conf) for _ in range(self.conf.num_workers)
         ]
-
         self.rnd_scaling = [
             RNDRewardScaling(shape=(1,), config=self.conf)
             for _ in range(self.conf.task_num)
         ]
-
         self.state_normalizer = StateNormalizer(self.obs_space, self.conf)
 
         print("Step 5: Init buffer")
