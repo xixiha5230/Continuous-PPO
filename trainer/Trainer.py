@@ -59,7 +59,7 @@ class Trainer:
 
         print("Step 4: Init reward scaling and state normalizer")
         self.reward_scaling = [
-            RewardScaling(1, 0.99) for _ in range(self.conf.num_workers)
+            RewardScaling(1, 0.99, self.conf) for _ in range(self.conf.num_workers)
         ]
 
         self.rnd_scaling = [
