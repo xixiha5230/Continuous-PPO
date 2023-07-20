@@ -129,9 +129,11 @@ class Conv1d(nn.Module):
         Args:
             x {torch.Tensor} -- tensor of sensor data shape like (batch, 400)
         """
-        batch = x.shape[0]
+        if len(x.shape) == 1:
+            x = x.unsqueeze(0)
         if len(x.shape) == 2:
             x = x.unsqueeze(1)
+        batch = x.shape[0]
         hidden = self.conv(x)
         hidden = hidden.view(batch, -1)
         x = self.fc(hidden)
