@@ -58,11 +58,10 @@ class Trainer:
         _dummy_env.close()
 
         print("Step 4: Init reward scaling and state normalizer")
-        self.reward_scaling = (
-            [RewardScaling(1, 0.99) for _ in range(self.conf.num_workers)]
-            if self.conf.use_reward_scaling
-            else None
-        )
+        self.reward_scaling = [
+            RewardScaling(1, 0.99) for _ in range(self.conf.num_workers)
+        ]
+
         self.rnd_scaling = (
             [
                 RNDRewardScaling(shape=(1,), config=self.conf)
@@ -102,8 +101,7 @@ class Trainer:
         print("Step 11: Check resume")
         if self.conf.resume:
             self.ppo_agent.load(self.logger.latest_checkpoint)
-            if self.conf.use_reward_scaling:
-                self.reward_scaling = self.logger.load_pickle("reward_scaling.pkl")
+            self.reward_scaling = self.logger.load_pickle("reward_scaling.pkl")
             if self.conf.use_rnd:
                 self.rnd_scaling = self.logger.load_pickle("rnd_scaling.pkl")
             self.state_normalizer = self.logger.load_pickle("state_normalizer.pkl")
@@ -247,8 +245,8 @@ class Trainer:
             self.conf.num_workers
         )
         # reset reward scaling
-        if self.reward_scaling is not None:
-            [rs.reset() for rs in self.reward_scaling]
+        for rs in self.reward_scaling:
+            rs.reset()
         return obs, recurrent_cell
 
     def _sample_training_data(self) -> list:
@@ -332,11 +330,9 @@ class Trainer:
                 obs_w = self.state_normalizer(obs_w)
                 buffer_index = self.worker_2_buff[w]
                 subworker_index = self.wroker_2_buff_subw[w]
-                self.buffer[buffer_index].rewards[subworker_index, t] = (
-                    self.reward_scaling[w](reward_w)
-                    if self.conf.use_reward_scaling
-                    else reward_w
-                )
+                self.buffer[buffer_index].rewards[
+                    subworker_index, t
+                ] = self.reward_scaling[w](reward_w)
                 self.buffer[buffer_index].dones[subworker_index, t] = done_w
 
                 if info:
@@ -358,8 +354,7 @@ class Trainer:
                             self.recurrent_cell[:, index] = rc
 
                     # reset reward scaling
-                    if self.conf.use_reward_scaling:
-                        self.reward_scaling[w].reset()
+                    self.reward_scaling[w].reset()
 
                 # Store latest observations
                 for i, o in enumerate(obs_w):

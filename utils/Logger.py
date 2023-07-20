@@ -54,15 +54,13 @@ class Logger:
 
     def load_pickle(self, name):
         file = os.path.join(self.run_log_dir, name)
-        if os.path.exists(file):
-            with open(file, "rb") as f:
-                return pickle.load(f)
-        else:
-            raise Exception(f"{file} not found")
+        assert os.path.exists(file) == True, f"{file} not found"
+        with open(file, "rb") as f:
+            return pickle.load(f)
 
     def save_pickle(self, obj, name):
-        reward_scaling_file = os.path.join(self.run_log_dir, name)
-        with open(reward_scaling_file, "wb") as f:
+        file = os.path.join(self.run_log_dir, name)
+        with open(file, "wb") as f:
             pickle.dump(obj, f)
 
     def write_tensorboard(self, datas, update):

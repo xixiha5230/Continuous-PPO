@@ -1,12 +1,13 @@
 import numpy as np
 
 from normalization.RunningMeanStd import RunningMeanStd
+from utils.ConfigHelper import ConfigHelper
 
 
 class RewardScaling:
     """reward scaling"""
 
-    def __init__(self, shape, gamma: float):
+    def __init__(self, shape, gamma: float, config: ConfigHelper):
         """
         Args:
             shape {} -- shape of reward
@@ -16,12 +17,15 @@ class RewardScaling:
         self.gamma = gamma
         self.running_ms = RunningMeanStd(shape=self.shape)
         self.R = np.zeros(self.shape, dtype=np.float64)
+        self.config = config
 
     def __call__(self, x):
         """scaling reward
         Args:
             x {} -- reward
         """
+        if not self.config.use_reward_scaling:
+            return x
         self.R = self.gamma * self.R + x
         self.running_ms.update(self.R)
         # Only divided std
