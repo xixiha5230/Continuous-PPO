@@ -1,6 +1,6 @@
 import numpy as np
 
-from utils import ConfigHelper
+from utils.ConfigHelper import ConfigHelper
 
 
 class RNDRewardScaling:
@@ -10,7 +10,7 @@ class RNDRewardScaling:
         self.mean = np.zeros(shape, dtype=np.float64)
         self.var = np.ones(shape, dtype=np.float64)
         self.count = epsilon
-
+        self.config = config
         if config.multi_task:
             self.task_num = config.task_num
             self.num_workers = config.num_workers // self.task_num
@@ -41,6 +41,8 @@ class RNDRewardScaling:
     def normalize_rnd_rewards(self, rewards):
         # OpenAI's usage of Forward filter is definitely wrong;
         # Because: https://github.com/openai/random-network-distillation/issues/16#issuecomment-488387659
+        if not self.config.use_rnd:
+            return rewards
         intrinsic_returns = [[] for _ in range(self.num_workers)]
         for worker in range(self.num_workers):
             rewems = 0
