@@ -47,8 +47,7 @@ def test(args):
         action_space = env.action_space
     elif config.action_type == "discrete":
         action_space = env.action_space.n
-    if config.use_state_normailzation:
-        state_normalizer = logger.load_pickle("state_normalizer.pkl")
+    state_normalizer = logger.load_pickle("state_normalizer.pkl")
 
     # initialize a PPO agent
     ppo_agent = PPO(observation_space, action_space, config)
@@ -69,11 +68,7 @@ def test(args):
     with torch.no_grad():
         for ep in range(1, total_test_episodes + 1):
             state = env.reset()
-            if config.use_state_normailzation:
-                if config.multi_task:
-                    state_normalizer(state[:-1]).append(state[-1])
-                else:
-                    state = state_normalizer(state)
+            state = state_normalizer(state, update=False)
             h_out = ppo_agent.init_recurrent_cell_states(1)
             step = 0
             while True:
@@ -87,11 +82,7 @@ def test(args):
                 # )
                 step += 1
                 state, _, _, info = env.step(action[0].cpu().numpy())
-                if config.use_state_normailzation:
-                    if config.multi_task:
-                        state_normalizer(state[:-1]).append(state[-1])
-                    else:
-                        state = state_normalizer(state)
+                state = state_normalizer(state, update=False)
                 env.render()
                 if save_gif:
                     images.append(env.render())

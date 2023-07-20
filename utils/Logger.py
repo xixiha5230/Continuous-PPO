@@ -53,9 +53,12 @@ class Logger:
         print("saving model at : " + checkpoint_file)
 
     def load_pickle(self, name):
-        reward_scaling_file = os.path.join(self.run_log_dir, name)
-        with open(reward_scaling_file, "rb") as f:
-            return pickle.load(f)
+        file = os.path.join(self.run_log_dir, name)
+        if os.path.exists(file):
+            with open(file, "rb") as f:
+                return pickle.load(f)
+        else:
+            raise Exception(f"{file} not found")
 
     def save_pickle(self, obj, name):
         reward_scaling_file = os.path.join(self.run_log_dir, name)

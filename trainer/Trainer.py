@@ -71,13 +71,7 @@ class Trainer:
             if self.conf.use_rnd
             else None
         )
-        self.state_normalizer = (
-            StateNormalizer(
-                self.obs_space[:-1] if self.conf.multi_task else self.obs_space
-            )
-            if self.conf.use_state_normailzation
-            else None
-        )
+        self.state_normalizer = StateNormalizer(self.obs_space, self.conf)
 
         print("Step 5: Init buffer")
         self.buffer = [
@@ -112,8 +106,7 @@ class Trainer:
                 self.reward_scaling = self.logger.load_pickle("reward_scaling.pkl")
             if self.conf.use_rnd:
                 self.rnd_scaling = self.logger.load_pickle("rnd_scaling.pkl")
-            if self.conf.use_state_normailzation:
-                self.state_normalizer = self.logger.load_pickle("state_normalizer.pkl")
+            self.state_normalizer = self.logger.load_pickle("state_normalizer.pkl")
 
     def run(self):
         """
@@ -220,17 +213,17 @@ class Trainer:
                 worker.child.send(("reset", None))
             for w, worker in enumerate(self.workers):
                 o = worker.child.recv()
-                self.state_normalizer(o[:-1] if self.conf.multi_task else o)
+                self.state_normalizer(o)
             for _ in tqdm(range(total_pre_normalization_steps)):
                 for w, worker in enumerate(self.workers):
                     worker.child.send(("step", self.action_space.sample()))
                 for w, worker in enumerate(self.workers):
                     obs_w, _, _, info = worker.child.recv()
-                    self.state_normalizer(obs_w[:-1] if self.conf.multi_task else obs_w)
+                    self.state_normalizer(obs_w)
                     if info:
                         worker.child.send(("reset", None))
                         o = worker.child.recv()
-                        self.state_normalizer(o[:-1] if self.conf.multi_task else o)
+                        self.state_normalizer(o)
             print("---Pre_normalization is done.---")
 
         """ reset all environment in workers """
@@ -245,11 +238,7 @@ class Trainer:
         # Grab initial observations and store them in their respective placeholder location
         for w, worker in enumerate(self.workers):
             o = worker.child.recv()
-            if self.state_normalizer is not None:
-                if self.conf.multi_task:
-                    o = self.state_normalizer(o[:-1]).append(o[-1])
-                else:
-                    o = self.state_normalizer(o)
+            o = self.state_normalizer(o)
             for i, o_ in enumerate(o):
                 obs[i][w] = o_
 
@@ -340,11 +329,7 @@ class Trainer:
             # Retrieve step results from the environments
             for w, worker in enumerate(self.workers):
                 obs_w, reward_w, done_w, info = worker.child.recv()
-                if self.state_normalizer is not None:
-                    if self.conf.multi_task:
-                        obs_w = self.state_normalizer(obs_w[:-1]).append(obs_w[-1])
-                    else:
-                        obs_w = self.state_normalizer(obs_w)
+                obs_w = self.state_normalizer(obs_w)
                 buffer_index = self.worker_2_buff[w]
                 subworker_index = self.wroker_2_buff_subw[w]
                 self.buffer[buffer_index].rewards[subworker_index, t] = (
@@ -361,11 +346,7 @@ class Trainer:
                     worker.child.send(("reset", None))
                     # Get data from reset
                     obs_w = worker.child.recv()
-                    if self.conf.use_state_normailzation:
-                        if self.conf.multi_task:
-                            obs_w = self.state_normalizer(obs_w[:-1]).append(obs_w[-1])
-                        else:
-                            obs_w = self.state_normalizer(obs_w)
+                    obs_w = self.state_normalizer(obs_w)
                     # Reset recurrent cell states
                     if self.conf.use_lstm and self.conf.reset_hidden_state:
                         rc = self.ppo_agent.init_recurrent_cell_states(1)
@@ -555,8 +536,7 @@ class Trainer:
             self.logger.save_pickle(self.reward_scaling, "reward_scaling.pkl")
         if self.conf.use_rnd:
             self.logger.save_pickle(self.rnd_scaling, "rnd_scaling.pkl")
-        if self.conf.use_state_normailzation:
-            self.logger.save_pickle(self.state_normalizer, "state_normalizer.pkl")
+        self.logger.save_pickle(self.state_normalizer, "state_normalizer.pkl")
         # save yaml file
         self.conf.save(self.logger.run_log_dir)
         print(
