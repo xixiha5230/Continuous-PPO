@@ -25,6 +25,10 @@ parser.add_argument(
     default=0,
     help="The checkpoint index",
 )
+parser.add_argument(
+    "--unity",
+    action="store_true",
+)
 
 parser.add_argument("--save_gif", type=bool, default=False)
 
@@ -38,7 +42,8 @@ def test(args):
     total_test_episodes = 1 if args.save_gif else 10
     save_gif = args.save_gif
     custom_ckpt = args.ckpt
-
+    if args.unity:
+        config.env_name = None
     env = create_env(
         config, render_mode="rgb_array" if save_gif else "human", id=51, time_scale=1
     )

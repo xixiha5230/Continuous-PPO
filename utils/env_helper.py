@@ -26,7 +26,11 @@ def create_env(conf: ConfigHelper, id: int = 0, render_mode=None, time_scale=100
     env_name = conf.env_name
     action_type = conf.action_type
     task = conf.task
-    if env_name == "LunarLander-v2":
+    if env_name == None:
+        from envs.CarTraffic import CarTraffic
+
+        return CarTraffic(None, 0, 1)
+    elif env_name == "LunarLander-v2":
         return LunarLander(action_type=action_type, render_mode=render_mode)
     elif env_name == "BipedalWalker-v3":
         raise NotImplementedError()
