@@ -5,7 +5,7 @@ from mlagents_envs.side_channel.engine_configuration_channel import (
 )
 
 
-class CarRace:
+class UnityCommon:
     """Unity car race environment"""
 
     def __init__(self, file_name: str, worker_id: int, time_scale: int):
@@ -67,7 +67,7 @@ if __name__ == "__main__":
     import cv2
 
     file_name = "UnityEnvs/CarRace"
-    env = CarRace(file_name=file_name, worker_id=0, time_scale=1)
+    env = UnityCommon(file_name=file_name, worker_id=0, time_scale=1)
     while True:
         done = False
         obs = env.reset()

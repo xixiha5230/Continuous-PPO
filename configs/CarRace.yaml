@@ -10,15 +10,20 @@ ppo:
     pow: 1.0
     max_decay_steps: 0
   lr_schedule:
-    init: 3.0e-4
-    final: 3.0e-4
+    init: 1.0e-4
+    final: 1.0e-6
+    pow: 1.0
+    max_decay_steps: 2000
+  task_schedule:
+    init: 0
+    final: 0
     pow: 1.0
     max_decay_steps: 0
   gamma: 0.99
   lamda: 0.95
   vf_loss_coeff: 0.5
 recurrence:
-  hidden_state_size: 256
+  hidden_state_size: 512
   layer_type: gru
   reset_hidden_state: true
   sequence_length: 32
@@ -27,10 +32,10 @@ train:
   K_epochs: 4
   device: cuda
   env_name: CarRace
-  exp_name: new_env
+  exp_name: lr_1e-4_-6
   action_type: continuous
   hidden_layer_size: 512
-  max_updates: 500
+  max_updates: 10000
   num_mini_batch: 8
   random_seed: 0
   save_model_freq: 10

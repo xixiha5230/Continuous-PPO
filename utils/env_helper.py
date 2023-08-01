@@ -27,9 +27,27 @@ def create_env(conf: ConfigHelper, id: int = 0, render_mode=None, time_scale=100
     action_type = conf.action_type
     task = conf.task
     if env_name == None:
-        from envs.CarTraffic import CarTraffic
+        from envs.UnityCommon import UnityCommon
 
-        return CarTraffic(None, 0, 1)
+        return UnityCommon(None, 0, 1)
+    elif (
+        env_name == "CarRace"
+        or env_name == "CarRace_NoReset"
+        or env_name == "CarSearch"
+        or env_name == "CarSearch_NoReset"
+        or env_name == "CarSearchCkpt"
+        or env_name == "Pyramids"
+        or env_name == "Hallway"
+    ):
+        from envs.UnityCommon import UnityCommon
+
+        return UnityCommon(
+            file_name=f"./UnityEnvs/{env_name}", worker_id=id, time_scale=time_scale
+        )
+    elif env_name == "UnityMultitask":
+        from envs.UnityMultitask import UnityMultitask
+
+        return UnityMultitask(task, id, time_scale)
     elif env_name == "LunarLander-v2":
         return LunarLander(action_type=action_type, render_mode=render_mode)
     elif env_name == "BipedalWalker-v3":
@@ -42,31 +60,6 @@ def create_env(conf: ConfigHelper, id: int = 0, render_mode=None, time_scale=100
         return CarRacing(action_type=action_type, render_mode=render_mode)
     elif env_name == "Walker2d-v4" or env_name == "Walker2d-v2":
         return Walker2d(env_name, render_mode=render_mode)
-    elif env_name == "CarRace" or env_name == "CarRace_NoReset":
-        from envs.CarRace import CarRace
-
-        return CarRace(
-            file_name=f"./UnityEnvs/{env_name}", worker_id=id, time_scale=time_scale
-        )
-    elif (
-        env_name == "CarSearch"
-        or env_name == "CarSearch_NoReset"
-        or env_name == "CarSearchCkpt"
-    ):
-        from envs.CarSearch import CarSearch
-
-        return CarSearch(
-            file_name=f"./UnityEnvs/{env_name}", worker_id=id, time_scale=time_scale
-        )
-    elif env_name == "Hallway":
-        from envs.Hallway import Hallway
-
-        return Hallway(
-            file_name=f"./UnityEnvs/{env_name}",
-            worker_id=id,
-            time_scale=time_scale,
-            render_mode=render_mode,
-        )
     elif env_name == "HopperJump":
         return HopperJump("mo-hopper-v4", render_mode=render_mode)
     elif env_name == "HopperRun":
@@ -77,19 +70,7 @@ def create_env(conf: ConfigHelper, id: int = 0, render_mode=None, time_scale=100
         return HalfCheetahDir(task=task, render_mode=render_mode, id=id)
     elif "MiniGrid" in env_name:
         return Minigrid(env_name, render_mode)
-    elif env_name == "UnityMultitask":
-        from envs.UnityMultitask import UnityMultitask
-
-        return UnityMultitask(task, id, time_scale)
-    elif env_name == "Pyramids":
-        from envs.Pyramids import Pyramids
-
-        return Pyramids(f"./UnityEnvs/{env_name}", id, time_scale)
     elif env_name == "AdroitHandHammer-v1":
         return AdroitHandHammer(render_mode=render_mode)
-    elif env_name == "CarTraffic":
-        from envs.CarTraffic import CarTraffic
-
-        return CarTraffic(f"./UnityEnvs/{env_name}", id, time_scale)
     else:
         raise f"Unknow env: {env_name}"
