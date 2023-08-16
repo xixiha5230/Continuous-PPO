@@ -29,6 +29,12 @@ parser.add_argument(
     "--unity",
     action="store_true",
 )
+parser.add_argument(
+    "--seed",
+    type=int,
+    default=0,
+    help="The seed",
+)
 
 parser.add_argument("--save_gif", type=bool, default=False)
 
@@ -39,13 +45,18 @@ def test(args):
     config = ConfigHelper(args.config_file)
     logger = Logger(config.env_name, config.exp_name, config.run_num, True, True)
 
-    total_test_episodes = 1 if args.save_gif else 10
+    total_test_episodes = 1 if args.save_gif else 20
     save_gif = args.save_gif
     custom_ckpt = args.ckpt
+    seed = args.seed
     if args.unity:
         config.env_name = None
     env = create_env(
-        config, render_mode="rgb_array" if save_gif else "human", id=51, time_scale=1
+        config,
+        render_mode="rgb_array" if save_gif else "human",
+        id=51,
+        time_scale=1,
+        seed=seed,
     )
     observation_space = env.observation_space
     if config.action_type == "continuous":
@@ -53,6 +64,7 @@ def test(args):
     elif config.action_type == "discrete":
         action_space = env.action_space.n
     state_normalizer = logger.load_pickle("state_normalizer.pkl")
+    state_normalizer.config = config
 
     # initialize a PPO agent
     ppo_agent = PPO(observation_space, action_space, config)

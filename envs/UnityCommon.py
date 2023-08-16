@@ -8,7 +8,7 @@ from mlagents_envs.side_channel.engine_configuration_channel import (
 class UnityCommon:
     """Unity car race environment"""
 
-    def __init__(self, file_name: str, worker_id: int, time_scale: int):
+    def __init__(self, file_name: str, worker_id: int, time_scale: int, seed: int = 0):
         """
         Args:
             file_name {str} -- unity environment path
@@ -19,7 +19,10 @@ class UnityCommon:
         self.worker_id = worker_id
         self.channel = EngineConfigurationChannel()
         unity_env = UnityEnvironment(
-            file_name=file_name, worker_id=worker_id, side_channels=[self.channel]
+            file_name=file_name,
+            worker_id=worker_id,
+            side_channels=[self.channel],
+            seed=seed,
         )
         self._env = UnityToGymWrapper(
             unity_env,
