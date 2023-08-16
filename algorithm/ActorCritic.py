@@ -32,42 +32,31 @@ class ActorCritic(nn.Module):
 
         # Observation feature extraction
         if (
-            isinstance(obs_space, (gym_spaces.Tuple, gymnasium_spaces.Tuple))
-            and len(obs_space) >= 2
+            len(obs_space) >= 2
             and obs_space[0].shape == (84, 84, 3)
             and obs_space[1].shape == (400,)
         ):
             # UGV
             self.obs_net = ObsNetUGV(obs_space)
-        elif (
-            isinstance(obs_space, (gym_spaces.Tuple, gymnasium_spaces.Tuple))
-            and len(obs_space) == 1
-            and obs_space[0].shape == (84, 84, 3)
-        ):
-            # UGV single image
+        elif len(obs_space) == 1 and obs_space[0].shape == (84, 84, 3):
+            # single image
             self.obs_net = ObsNetImage(obs_space[0])
-        elif len(obs_space.shape) == 1:
-            # MT vector obs
+        elif len(obs_space) == 1:
+            # vector obs
             pass
-        elif len(obs_space.shape) == 3:
-            # MT image obs
-            self.obs_net = ObsNetImage(obs_space)
         else:
             raise NotImplementedError(obs_space)
         in_features_size = (
-            self.obs_net.output_size if hasattr(self, "obs_net") else obs_space.shape[0]
+            self.obs_net.output_size
+            if hasattr(self, "obs_net")
+            else obs_space[0].shape[0]
         )
 
         # RND
         if self.use_rnd:
             # TODO mybe can rnd rnn feature
             # Only rnd the first dimension of the observation space !!!
-            self.rnd = RND(
-                config,
-                obs_space[0].shape
-                if isinstance(obs_space, (gym_spaces.Tuple, gymnasium_spaces.Tuple))
-                else obs_space.shape,
-            )
+            self.rnd = RND(config, obs_space[0].shape)
 
         # Task net
         if self.multi_task:
@@ -175,11 +164,7 @@ class ActorCritic(nn.Module):
         else:
             feature = obs
 
-        if hasattr(self, "obs_net"):
-            feature = self.obs_net(feature)
-        else:
-            if isinstance(feature, list):
-                feature = feature[0]
+        feature = self.obs_net(feature) if hasattr(self, "obs_net") else feature[0]
         obs_feature = feature
         if self.use_lstm:
             feature, hidden_out = self.rnn_net(feature, hidden_in, sequence_length)

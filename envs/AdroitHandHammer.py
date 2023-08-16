@@ -15,7 +15,7 @@ class AdroitHandHammer:
 
     @property
     def observation_space(self):
-        return self._env.observation_space
+        return gymnasium.spaces.Tuple((self._env.observation_space,))
 
     @property
     def action_space(self):

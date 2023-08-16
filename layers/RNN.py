@@ -37,6 +37,8 @@ class RNN(nn.Module):
         """
         if sequence_length == 1:
             # Case: sampling training data or model optimization using sequence length == 1
+            if len(feature.size()) == 1:
+                feature = feature.unsqueeze(0)
             feature, hidden_out = self.rnn(feature.unsqueeze(1), hidden_in)
             # Remove sequence length dimension
             feature = feature.squeeze(1)
