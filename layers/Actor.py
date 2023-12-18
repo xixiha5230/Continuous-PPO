@@ -1,3 +1,5 @@
+from typing import Union
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -157,7 +159,7 @@ class MultiGaussianActor(Actor):
         else:
             raise NotImplementedError(self.action_type)
 
-    def forward(self, feature: torch.Tensor, actor_index: int):
+    def forward(self, feature: torch.Tensor, actor_index: Union[torch.Tensor, int]):
         """
         Args:
             feature {torch.Tensor} --- hight level feature
