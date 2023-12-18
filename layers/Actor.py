@@ -19,7 +19,7 @@ class Actor(nn.Module):
             action_space {Box} -- action space
         """
         super(Actor, self).__init__()
-        self.action_type = config.action_type
+        self.action_type = config.env_action_type
 
         if self.action_type == "continuous":
             self.action_dim, self.action_max = (

@@ -8,7 +8,7 @@ class ConfigHelper:
     def __init__(self, config_file) -> None:
         # load config
         with open(config_file, "r") as infile:
-            self.conf = yaml.safe_load(infile)
+            self.conf: dict = yaml.safe_load(infile)
 
         # check device
         print(
@@ -29,10 +29,8 @@ class ConfigHelper:
         conf_train = {}
         conf_train: dict = self.conf.setdefault("train", conf_train)
         self.exp_name = conf_train.setdefault("exp_name", "default")
-        self.env_name = conf_train["env_name"]
         self.K_epochs = conf_train.setdefault("K_epochs", 80)
         self.device = conf_train.setdefault("device", device)
-        self.action_type = conf_train.setdefault("action_type", "continuous")
         self.save_model_freq = conf_train.setdefault("save_model_freq", 5)
         self.random_seed = conf_train.setdefault("random_seed", 0)
         self.use_reward_scaling = conf_train.setdefault("use_reward_scaling", True)
@@ -99,9 +97,18 @@ class ConfigHelper:
 
         # Worker hyperparameters
         worker = {}
-        conf_worker = self.conf.setdefault("worker", worker)
+        conf_worker: dict = self.conf.setdefault("worker", worker)
         self.num_workers = conf_worker.setdefault("num_workers", 6)
         self.worker_steps = conf_worker.setdefault("worker_steps", 1000)
+
+        # Enviroument settings
+        env = {}
+        conf_env: dict = self.conf.setdefault("env", env)
+        self.env_name = conf_env["env_name"]
+        self.env_type = conf_env.setdefault("env_type", "gym")
+        self.env_win_path = conf_env.setdefault("env_win_path", "")
+        self.env_linux_path = conf_env.setdefault("env_linux_path", "")
+        self.env_action_type = conf_train.setdefault("env_action_type", "continuous")
 
     def save(self, log_dir):
         self.conf["train"]["update"] = self.update

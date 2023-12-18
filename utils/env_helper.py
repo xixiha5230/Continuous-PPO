@@ -1,4 +1,5 @@
 from utils.ConfigHelper import ConfigHelper
+import sys
 
 
 def create_env(
@@ -15,27 +16,21 @@ def create_env(
         {env}: Returns the selected environment instance.
     """
     env_name = conf.env_name
-    action_type = conf.action_type
+    env_type = conf.env_type
+    env_win_path = conf.env_win_path
+    env_linux_path = conf.env_linux_path
+    action_type = conf.env_action_type
     task = conf.task
     if env_name == None:
         from envs.UnityCommon import UnityCommon
 
         return UnityCommon(None, 0, 1)
-    elif (
-        env_name == "CarRace"
-        or env_name == "CarRace_NoReset"
-        or env_name == "CarSearch"
-        or env_name == "CarSearch_NoReset"
-        or env_name == "CarSearchCkpt"
-        or env_name == "Pyramids"
-        or env_name == "Hallway"
-    ):
+    elif env_type == "Unity":
         from envs.UnityCommon import UnityCommon
 
-        return UnityCommon(
-            file_name=f"./UnityEnvs/{env_name}", worker_id=id, time_scale=time_scale
-        )
-    elif env_name == "UnityMultitask":
+        env_path = env_win_path if sys.platform == "win32" else env_linux_path
+        return UnityCommon(file_name=env_path, worker_id=id, time_scale=time_scale)
+    elif env_type == "Unity_multi_task":
         from envs.UnityMultitask import UnityMultitask
 
         return UnityMultitask(task, id, time_scale)

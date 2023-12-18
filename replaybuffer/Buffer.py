@@ -23,7 +23,7 @@ class Buffer:
         """
         self.device = config.device
         self.num_mini_batch = config.num_mini_batch
-        self.action_type = config.action_type
+        self.action_type = config.env_action_type
         self.multi_task = config.multi_task
         self.use_rnd = config.use_rnd
 

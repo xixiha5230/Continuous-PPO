@@ -59,9 +59,9 @@ def test(args):
         seed=seed,
     )
     observation_space = env.observation_space
-    if config.action_type == "continuous":
+    if config.env_action_type == "continuous":
         action_space = env.action_space
-    elif config.action_type == "discrete":
+    elif config.env_action_type == "discrete":
         action_space = env.action_space.n
     state_normalizer = logger.load_pickle("state_normalizer.pkl")
     state_normalizer.config = config

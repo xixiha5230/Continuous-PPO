@@ -21,7 +21,7 @@ class PPO:
 
         self.vf_loss_coeff = config.vf_loss_coeff
 
-        self.action_type = config.action_type
+        self.action_type = config.env_action_type
         self.device = config.device
         self.multi_task = config.multi_task
         self.use_rnd = config.use_rnd

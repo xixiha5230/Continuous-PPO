@@ -52,7 +52,7 @@ class Trainer:
         self.obs_space = _dummy_env.observation_space
         self.action_space = (
             _dummy_env.action_space
-            if self.conf.action_type == "continuous"
+            if self.conf.env_action_type == "continuous"
             else _dummy_env.action_space.n
         )
         _dummy_env.close()
