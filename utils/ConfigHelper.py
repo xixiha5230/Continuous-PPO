@@ -108,7 +108,7 @@ class ConfigHelper:
         self.env_type = conf_env.setdefault("env_type", "gym")
         self.env_win_path = conf_env.setdefault("env_win_path", "")
         self.env_linux_path = conf_env.setdefault("env_linux_path", "")
-        self.env_action_type = conf_train.setdefault("env_action_type", "continuous")
+        self.env_action_type = conf_env.setdefault("env_action_type", "continuous")
 
     def save(self, log_dir):
         self.conf["train"]["update"] = self.update
