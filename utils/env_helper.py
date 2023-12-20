@@ -1,5 +1,6 @@
 from utils.ConfigHelper import ConfigHelper
 import sys
+from importlib import import_module
 
 
 def create_env(
@@ -15,7 +16,7 @@ def create_env(
     Returns:
         {env}: Returns the selected environment instance.
     """
-    env_name = conf.env_name
+    env_name: str = conf.env_name
     env_type = conf.env_type
     env_win_path = conf.env_win_path
     env_linux_path = conf.env_linux_path
@@ -34,52 +35,16 @@ def create_env(
         from envs.UnityMultitask import UnityMultitask
 
         return UnityMultitask(task, id, time_scale)
-    elif env_name == "LunarLander-v2":
-        from envs.LunarLander import LunarLander
-
-        return LunarLander(action_type=action_type, render_mode=render_mode)
-    elif env_name == "BipedalWalker-v3":
-        raise NotImplementedError()
-    elif env_name == "MountainCar-v0" or env_name == "MountainCarContinuous-v0":
-        from envs.MountainCar import MountainCar
-
-        return MountainCar(env_name, render_mode=render_mode)
-    elif env_name == "CartPole-v1" or env_name == "CartPole-v0":
-        from envs.CartPole import CartPole
-
-        return CartPole(env_name, render_mode=render_mode)
-
-    elif env_name == "CarRacing-v1":
-        from envs.CarRacing import CarRacing
-
-        return CarRacing(action_type=action_type, render_mode=render_mode)
-    elif env_name == "Walker2d-v4" or env_name == "Walker2d-v2":
-        from envs.Walker2d import Walker2d
-
-        return Walker2d(env_name, render_mode=render_mode)
-    elif env_name == "HopperJump":
-        from envs.Hoper.HopperJump import HopperJump
-
-        return HopperJump("mo-hopper-v4", render_mode=render_mode)
-    elif env_name == "HopperRun":
-        from envs.Hoper.HopperRun import HopperRun
-
-        return HopperRun("mo-hopper-v4", render_mode=render_mode)
+    elif env_type == "gym" or env_type == "mujoco":
+        class_name = env_name.split("-")[0]
+        module = import_module(f"envs.{class_name}")
+        gym_class = getattr(module, class_name)
+        return gym_class(
+            env_name=env_name, action_type=action_type, render_mode=render_mode, id=id
+        )
     elif env_name == "HalfCheetahVel":
         from envs.HalfCheetah.HalfCheetahVel import HalfCheetahVel
 
         return HalfCheetahVel(task=task, render_mode=render_mode, id=id)
-    elif env_name == "HalfCheetahDir":
-        from envs.HalfCheetah.HalfCheetahDir import HalfCheetahDir
-
-        return HalfCheetahDir(task=task, render_mode=render_mode, id=id)
-    elif "MiniGrid" in env_name:
-        from envs.MinigridMemory import Minigrid
-
-        return Minigrid(env_name, render_mode)
-    elif env_name == "AdroitHandHammer-v1":
-        from envs.AdroitHandHammer import AdroitHandHammer
-
-        return AdroitHandHammer(render_mode=render_mode)
     else:
         raise f"Unknow env: {env_name}"

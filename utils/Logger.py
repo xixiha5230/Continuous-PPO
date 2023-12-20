@@ -28,14 +28,14 @@ class Logger:
         if not test:
             print("save checkpoint path : " + self.checkpoint_path)
 
-    def write_reward(self, step, i_episode, episode_result):
+    def write_reward(self, update, step, i_episode, episode_result):
         if len(episode_result) > 0:
             self.reward_writter.write(
                 f'{step},\t{i_episode},\t{episode_result["reward_mean"]}\n'
             )
             self.reward_writter.flush()
             print(
-                f'step: {step}\t episode: {i_episode}\t reward: {episode_result["reward_mean"]}'
+                f'update: {update} \t step: {step}\t episode: {i_episode}\t reward: {episode_result["reward_mean"]}'
             )
 
     @property

@@ -4,21 +4,25 @@ import gymnasium
 class LunarLander:
     """Gym LunarLander environment"""
 
-    def __init__(self, action_type: str, render_mode=None):
+    def __init__(
+        self, env_name: str, action_type: str = "", render_mode: str = None, id: int = 0
+    ):
         """
         Args:
+            env_name {str} -- name of diffrent version
             action_type {str} -- action type: continuous or discrete
             render_mode {str} -- render mode: humnan or rgb_array
+            id {int}  -- task id
         """
         self._env = gymnasium.make(
-            "LunarLander-v2",
+            env_name,
             continuous=True if action_type == "continuous" else False,
             render_mode=render_mode,
         )
 
     @property
     def observation_space(self):
-        return self._env.observation_space
+        return gymnasium.spaces.Tuple([self._env.observation_space])
 
     @property
     def action_space(self):

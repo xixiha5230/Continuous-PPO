@@ -172,6 +172,7 @@ class Trainer:
                 self.conf.update * self.conf.num_workers * self.conf.worker_steps,
             )
             self.logger.write_reward(
+                self.conf.update,
                 self.conf.update * self.conf.num_workers * self.conf.worker_steps,
                 self.conf.i_episode,
                 episode_result,

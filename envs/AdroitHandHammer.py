@@ -4,13 +4,18 @@ import gymnasium
 class AdroitHandHammer:
     """Gym AdroitHandHammer environment"""
 
-    def __init__(self, render_mode=None):
+    def __init__(
+        self, env_name: str, action_type: str = "", render_mode: str = None, id: int = 0
+    ):
         """
         Args:
+            env_name {str} -- name of diffrent version
+            action_type {str} -- action type: continuous or discrete
             render_mode {str} -- render mode: humnan or rgb_array
+            id {int}  -- task id
         """
         self._env = gymnasium.make(
-            "AdroitHandHammer-v1", max_episode_steps=400, render_mode=render_mode
+            env_name, max_episode_steps=400, render_mode=render_mode
         )
 
     @property

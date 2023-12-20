@@ -4,11 +4,15 @@ import gymnasium
 class Walker2d:
     """Mujoco Walker2d environment"""
 
-    def __init__(self, env_name, render_mode=None):
+    def __init__(
+        self, env_name: str, action_type: str = "", render_mode: str = None, id: int = 0
+    ):
         """
         Args:
-            name {str} -- name of diffrent version
+            env_name {str} -- name of diffrent version
+            action_type {str} -- action type: continuous or discrete
             render_mode {str} -- render mode: humnan or rgb_array
+            id {int}  -- task id
         """
         self._env = gymnasium.make(env_name, render_mode=render_mode)
 
