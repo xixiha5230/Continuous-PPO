@@ -10,8 +10,8 @@ ppo:
     pow: 1.0
     max_decay_steps: 0
   lr_schedule:
-    init: 3.0e-4
-    final: 3.0e-4
+    init: 1.0e-3
+    final: 1.0e-3
     pow: 1.0
     max_decay_steps: 0
   gamma: 0.99
@@ -21,21 +21,27 @@ recurrence:
   hidden_state_size: 64
   layer_type: gru
   reset_hidden_state: true
-  sequence_length: 8
-  use_lstm: true
+  sequence_length: -1
+  use_lstm: false
 train:
   K_epochs: 4
   device: cuda
-  env_name: LunarLander-v2
-  exp_name: test
-  action_type: continuous
-  hidden_layer_size: 256
+  exp_name: discrete
+  hidden_layer_size: 64
   max_updates: 300
   num_mini_batch: 8
   random_seed: 0
   save_model_freq: 10
   use_rnd: false
   rnd_rate: 1.
+  use_reward_scaling: true
+  use_state_normailzation: false
 worker:
-  num_workers: 16
-  worker_steps: 256
+  num_workers: 8
+  worker_steps: 512
+env:
+  env_name: LunarLander-v2
+  env_type: gym
+  env_action_type: discrete
+  env_win_path: null
+  env_linux_path: null
