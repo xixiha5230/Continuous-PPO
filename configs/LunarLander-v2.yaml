@@ -10,8 +10,8 @@ ppo:
     pow: 1.0
     max_decay_steps: 0
   lr_schedule:
-    init: 1.0e-3
-    final: 1.0e-3
+    init: 2.5e-3
+    final: 2.5e-3
     pow: 1.0
     max_decay_steps: 0
   gamma: 0.99
@@ -26,7 +26,7 @@ recurrence:
 train:
   K_epochs: 4
   device: cuda
-  exp_name: discrete
+  exp_name: test_coun
   hidden_layer_size: 64
   max_updates: 300
   num_mini_batch: 8
@@ -42,6 +42,6 @@ worker:
 env:
   env_name: LunarLander-v2
   env_type: gym
-  env_action_type: discrete
+  env_action_type: continuous 
   env_win_path: null
   env_linux_path: null
