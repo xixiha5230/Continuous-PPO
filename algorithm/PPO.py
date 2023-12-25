@@ -326,30 +326,3 @@ class PPO:
         self.policy.load_state_dict(
             torch.load(checkpoint_path, map_location=lambda storage, loc: storage)
         )
-
-    def init_recurrent_cell_states(self, num_sequences) -> tuple:
-        """Initializes the recurrent cell states (hxs, cxs) as zeros.
-        Args:
-            num_sequences {int} -- The number of sequences determines the number of the to be generated initial recurrent cell states.
-        Returns:
-            {tuple} -- Depending on the used recurrent layer type, just hidden states (gru) or both hidden states and
-                     cell states are returned using initial values.
-        """
-        hxs = torch.zeros(
-            (num_sequences),
-            self.hidden_state_size,
-            dtype=torch.float32,
-            device=self.device,
-        ).unsqueeze(0)
-        if self.layer_type == "gru":
-            return hxs
-        elif self.layer_type == "lstm":
-            cxs = torch.zeros(
-                (num_sequences),
-                self.hidden_state_size,
-                dtype=torch.float32,
-                device=self.device,
-            ).unsqueeze(0)
-            return hxs, cxs
-        else:
-            raise NotImplementedError(self.layer_type)
