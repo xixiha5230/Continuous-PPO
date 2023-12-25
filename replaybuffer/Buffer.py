@@ -33,7 +33,7 @@ class Buffer:
 
         if self.multi_task:
             self.task_num = config.task_num
-            self.n_workers = config.num_workers // self.task_num
+            self.n_workers = config.worker_per_task
         else:
             self.n_workers = config.num_workers
         self.worker_steps = config.worker_steps

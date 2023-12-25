@@ -13,7 +13,7 @@ class RNDRewardScaling:
         self.config = config
         if config.multi_task:
             self.task_num = config.task_num
-            self.num_workers = config.num_workers // self.task_num
+            self.num_workers = config.worker_per_task
         else:
             self.num_workers = config.num_workers
         self.worker_steps = config.worker_steps

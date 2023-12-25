@@ -42,8 +42,6 @@ class ConfigHelper:
         self.resume = conf_train.setdefault("resume", False)
         self.run_num = conf_train.setdefault("run_num", 0)
         self.multi_task = conf_train.setdefault("multi_task", False)
-        self.task = self.conf.get("task", [])
-        self.task_num = len(self.task) if self.multi_task else 1
         self.use_rnd = conf_train.setdefault("use_rnd", False)
         self.rnd_rate = conf_train.setdefault("rnd_rate", 0.5)
         self.use_state_normailzation = conf_train.setdefault(
@@ -109,6 +107,12 @@ class ConfigHelper:
         self.env_win_path = conf_env.setdefault("env_win_path", "")
         self.env_linux_path = conf_env.setdefault("env_linux_path", "")
         self.env_action_type = conf_env.setdefault("env_action_type", "continuous")
+        self.task_num = (
+            max(len(self.env_linux_path), len(self.env_win_path))
+            if self.multi_task
+            else 1
+        )
+        self.worker_per_task = self.num_workers // self.task_num
 
     def save(self, log_dir):
         self.conf["train"]["update"] = self.update
