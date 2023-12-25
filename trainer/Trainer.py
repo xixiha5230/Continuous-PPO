@@ -17,6 +17,7 @@ from utils.env_helper import create_env
 from utils.Logger import Logger
 from utils.obs_2_tensor import _obs_2_tensor
 from utils.polynomial_decay import get_decay
+from utils.recurrent_cell_init import recurrent_cell_init
 from worker.Worker import Worker
 from worker.WorkerCommand import WorkerCommand
 
@@ -203,17 +204,17 @@ class Trainer:
         if self.conf.use_state_normailzation:
             print("---Pre_normalization started.---")
             total_pre_normalization_steps = 512
-            for w, worker in enumerate(self.workers):
+            for worker in self.workers:
                 worker.child.send((WorkerCommand.reset, None))
-            for w, worker in enumerate(self.workers):
+            for worker in self.workers:
                 o = worker.child.recv()
                 self.state_normalizer(o)
             for _ in tqdm(range(total_pre_normalization_steps)):
-                for w, worker in enumerate(self.workers):
+                for worker in self.workers:
                     worker.child.send((WorkerCommand.step, self.action_space.sample()))
-                for w, worker in enumerate(self.workers):
-                    obs_w, _, _, info = worker.child.recv()
-                    self.state_normalizer(obs_w)
+                for worker in self.workers:
+                    o, _, _, info = worker.child.recv()
+                    self.state_normalizer(o)
                     if info:
                         worker.child.send((WorkerCommand.reset, None))
                         o = worker.child.recv()
@@ -223,27 +224,30 @@ class Trainer:
         """ reset all environment in workers """
         assert isinstance(self.obs_space, (gym_spaces.Tuple, gymnasium_spaces.Tuple))
         obs = [
-            np.zeros((self.conf.num_workers,) + o.shape, dtype=np.float32)
-            for o in self.obs_space
+            np.zeros((self.conf.num_workers,) + _o.shape, dtype=np.float32)
+            for _o in self.obs_space
         ]
-        # reset env
-        for worker in self.workers:
+
+        for index, worker in enumerate(self.workers):
             worker.child.send((WorkerCommand.reset, None))
-        # Grab initial observations and store them in their respective placeholder location
-        for w, worker in enumerate(self.workers):
             o = worker.child.recv()
             o = self.state_normalizer(o)
-            for i, o_ in enumerate(o):
-                obs[i][w] = o_
+            for _obs_item, _o_item in zip(obs, o):
+                _obs_item[index, :] = _o_item
 
         # Setup initial recurrent cell states (LSTM: tuple(tensor, tensor) or GRU: tensor)
-        recurrent_cell = self.ppo_agent.init_recurrent_cell_states(
-            self.conf.num_workers
+        cell = recurrent_cell_init(
+            self.conf.num_workers,
+            self.conf.hidden_state_size,
+            self.conf.layer_type,
+            self.conf.device,
         )
+
         # reset reward scaling
-        for rs in self.reward_scaling:
-            rs.reset()
-        return obs, recurrent_cell
+        for reward_sacling in self.reward_scaling:
+            reward_sacling.reset()
+
+        return obs, cell
 
     def _sample_training_data(self) -> list:
         """Runs all n workers for n steps to sample training data.
@@ -251,224 +255,149 @@ class Trainer:
             {list} -- list of results of completed episodes.
         """
         episode_infos = []
-        for t in range(self.conf.worker_steps):
-            # Gradients can be omitted for sampling training data
-            with torch.no_grad():
-                # Preprocess state data
-                state_t = _obs_2_tensor(self.obs, self.conf.device)
-                # gnenrate select mask
-                if (
-                    not hasattr(self, "mask")
-                    or not hasattr(self, "indices")
-                    or not hasattr(self, "buffer_mask")
-                    or not hasattr(self, "original_order")
-                ):
-                    (
-                        self.mask,
-                        self.worker_2_buff,
-                        self.wroker_2_buff_subw,
-                        self.buffer_mask,
-                    ) = self._state_classified_mask(state_t)
-                    self.original_order = torch.argsort(self.mask)
-                reordered_state_t = [
-                    torch.index_select(s, 0, self.mask) for s in state_t
-                ]
 
-                for i, m in enumerate(self.buffer_mask):
-                    for _b, _s in zip(self.buffer[i].obs, reordered_state_t):
-                        _b[:, t] = torch.index_select(_s, 0, m)
-
-                if self.conf.use_lstm:
-                    for i, m in enumerate(self.buffer_mask):
-                        if self.conf.layer_type == "gru":
-                            self.buffer[i].hxs[:, t] = torch.index_select(
-                                self.recurrent_cell.squeeze(0), 0, m
-                            )
-                        elif self.conf.layer_type == "lstm":
-                            self.buffer[i].hxs[:, t] = torch.index_select(
-                                self.recurrent_cell[0].squeeze(0), 0, m
-                            )
-                            self.buffer[i].cxs[:, t] = torch.index_select(
-                                self.recurrent_cell[1].squeeze(0), 0, m
-                            )
-
-                # Forward the model
-                (
-                    action_t,
-                    action_logprob_t,
-                    value_t,
-                    rnd_value_t,
-                    self.recurrent_cell,
-                ) = self._multi_task_select_action(reordered_state_t, self.buffer_mask)
-
-                # save to diffrent buffer
-                for i, m in enumerate(self.buffer_mask):
-                    self.buffer[i].actions[:, t] = torch.index_select(action_t, 0, m)
-                    self.buffer[i].log_probs[:, t] = torch.index_select(
-                        action_logprob_t, 0, m
-                    )
-                    self.buffer[i].values[:, t] = torch.index_select(value_t, 0, m)
-                    if self.conf.use_rnd:
-                        self.buffer[i].rnd_values[:, t] = torch.index_select(
-                            rnd_value_t, 0, m
-                        )
-
-            # restore action order
-            restored_action_t = torch.index_select(action_t, 0, self.original_order)
-
-            # Send actions to the environments
-            for w, worker in enumerate(self.workers):
-                worker.child.send(
-                    (WorkerCommand.step, restored_action_t[w].cpu().numpy())
-                )
-
-            # Retrieve step results from the environments
-            for w, worker in enumerate(self.workers):
-                obs_w, reward_w, done_w, info = worker.child.recv()
-                obs_w = self.state_normalizer(obs_w)
-                buffer_index = self.worker_2_buff[w]
-                subworker_index = self.wroker_2_buff_subw[w]
-                self.buffer[buffer_index].rewards[
-                    subworker_index, t
-                ] = self.reward_scaling[w](reward_w)
-                self.buffer[buffer_index].dones[subworker_index, t] = done_w
-
-                if info:
-                    # Store the information of the completed episode (e.g. total reward, episode length)
-                    episode_infos.append(info)
-                    # Reset agent (potential interface for providing reset parameters)
-                    worker.child.send((WorkerCommand.reset, None))
-                    # Get data from reset
-                    obs_w = worker.child.recv()
-                    obs_w = self.state_normalizer(obs_w)
-                    # Reset recurrent cell states
-                    if self.conf.use_lstm and self.conf.reset_hidden_state:
-                        rc = self.ppo_agent.init_recurrent_cell_states(1)
-                        index = self.original_order[w].item()
-                        if self.conf.layer_type == "lstm":
-                            self.recurrent_cell[0][:, index] = rc[0]
-                            self.recurrent_cell[1][:, index] = rc[1]
-                        else:
-                            self.recurrent_cell[:, index] = rc
-
-                    # reset reward scaling
-                    self.reward_scaling[w].reset()
-
-                # Store latest observations
-                for i, o in enumerate(obs_w):
-                    self.obs[i][w] = o
-
-            # save next obs in buffer for rnd
-            if self.conf.use_rnd:
-                _state_t = _obs_2_tensor(self.obs, self.conf.device)
-                _rnd_state_t = torch.index_select(_state_t[0], 0, self.mask)
-                for i, m in enumerate(self.buffer_mask):
-                    self.buffer[i].rnd_next_obs[:, t] = torch.index_select(
-                        _rnd_state_t, 0, m
-                    )
+        for step in range(self.conf.worker_steps):
+            self._sample_one_step(step, episode_infos)
 
         # Calculate internal reward
         if self.conf.use_rnd:
-            next_state = torch.cat([b.rnd_next_obs for b in self.buffer], dim=0)
+            next_states = torch.cat([b.rnd_next_obs for b in self.buffer], dim=0)
             total_rnd_rewards = self.ppo_agent.policy.rnd.calculate_rnd_rewards(
-                next_state
+                next_states
             )
+            for index in range(self.conf.task_num):
+                buffer = self.buffer[index]
+                start = index * self.conf.worker_per_task
+                end = start + self.conf.worker_per_task
+                slice_range = slice(start, end)
 
-            if not hasattr(self, "rnd_reward_index"):
-                num_worker_task = [b.rnd_rewards.shape[0] for b in self.buffer]
-                self.rnd_reward_index = np.cumsum(num_worker_task)
-            rnd_rewards = np.split(
-                total_rnd_rewards[: self.rnd_reward_index[-1]],
-                self.rnd_reward_index[:-1],
-            )
-            # save rnd rewards in buffer
-            for b, rs, rr in zip(self.buffer, self.rnd_scaling, rnd_rewards):
-                b.rnd_rewards = rs.normalize_rnd_rewards(rr)
+                # save rnd rewards to buffer
+                buffer.rnd_rewards = self.rnd_scaling[index].normalize_rnd_rewards(
+                    total_rnd_rewards[slice_range]
+                )
 
         # Calculate advantages
-        state_t = _obs_2_tensor(self.obs, self.conf.device)
-        state_t = [torch.index_select(s, 0, self.mask) for s in state_t]
-        _, _, last_value_t, last_rnd_value_t, _ = self._multi_task_select_action(
-            state_t, self.buffer_mask
-        )
-        for b, m in zip(self.buffer, self.buffer_mask):
-            b.calc_advantages(
-                torch.index_select(last_value_t, 0, m),
-                torch.index_select(last_rnd_value_t, 0, m)
-                if last_rnd_value_t is not None
-                else None,
+        last_state_t = _obs_2_tensor(self.obs, self.conf.device)
+        (
+            _,
+            _,
+            last_value_t,
+            last_rnd_value_t,
+            _,
+        ) = self.ppo_agent.select_action(last_state_t, self.recurrent_cell)
+        for index in range(self.conf.task_num):
+            buffer = self.buffer[index]
+            start = index * self.conf.worker_per_task
+            end = start + self.conf.worker_per_task
+            slice_range = slice(start, end)
+
+            buffer.calc_advantages(
+                last_value_t[slice_range],
+                last_rnd_value_t[slice_range] if last_rnd_value_t is not None else None,
             )
 
         return episode_infos
 
-    def _multi_task_select_action(self, reshaped_state, buffer_mask):
-        task_data = []
-        for i, m in enumerate(buffer_mask):
-            task_state = [torch.index_select(s, 0, m) for s in reshaped_state]
+    def _sample_one_step(
+        self,
+        step: int,
+        episode_infos: list,
+    ):
+        # numpy observation to tensor
+        state_t = _obs_2_tensor(self.obs, self.conf.device)
+        for index in range(self.conf.task_num):
+            buffer = self.buffer[index]
+            start = index * self.conf.worker_per_task
+            end = start + self.conf.worker_per_task
+            slice_range = slice(start, end)
+            for obs_item, state_item in zip(buffer.obs, state_t):
+                obs_item[:, step, :] = state_item[slice_range, :]
+
             if self.conf.use_lstm:
-                task_hidden_in = (
-                    torch.index_select(self.recurrent_cell, 1, m)
-                    if self.conf.layer_type == "gru"
-                    else (
-                        torch.index_select(self.recurrent_cell[0], 1, m),
-                        torch.index_select(self.recurrent_cell[1], 1, m),
+                if self.conf.layer_type == "gru":
+                    buffer.hxs[:, step] = self.recurrent_cell.squeeze(0)[slice_range, :]
+                elif self.conf.layer_type == "lstm":
+                    buffer.hxs[:, step] = self.recurrent_cell[0].squeeze(0)[
+                        slice_range, :
+                    ]
+                    buffer.cxs[:, step] = self.recurrent_cell[1].squeeze(0)[
+                        slice_range, :
+                    ]
+
+        # Gradients can be omitted for sampling training data
+        with torch.no_grad():
+            # forwad model
+            (
+                action_t,
+                action_logprob_t,
+                value_t,
+                rnd_value_t,
+                self.recurrent_cell,
+            ) = self.ppo_agent.select_action(state_t, self.recurrent_cell)
+
+        # save to buffer
+        for index in range(self.conf.task_num):
+            buffer = self.buffer[index]
+            start = index * self.conf.worker_per_task
+            end = start + self.conf.worker_per_task
+            slice_range = slice(start, end)
+
+            buffer.actions[:, step] = action_t[slice_range]
+            buffer.log_probs[:, step] = action_logprob_t[slice_range]
+            buffer.values[:, step] = value_t[slice_range]
+            if self.conf.use_rnd:
+                buffer.rnd_values[:, step] = rnd_value_t[slice_range]
+
+        # Send actions to the environments
+        for worker, action in zip(self.workers, action_t):
+            worker.child.send((WorkerCommand.step, action.cpu().numpy()))
+
+        # Retrieve step results from the environments
+        for worker_index, worker in enumerate(self.workers):
+            obs_w, reward_w, done_w, info = worker.child.recv()
+            obs_w = self.state_normalizer(obs_w)
+            reward_w = self.reward_scaling[worker_index](reward_w)
+
+            buffer = self.buffer[worker_index // self.conf.worker_per_task]
+            buffer_index = worker_index % self.conf.worker_per_task
+            buffer.rewards[buffer_index, step] = reward_w
+            buffer.dones[buffer_index, step] = done_w
+
+            if info:
+                # Store the information of the completed episode (e.g. total reward, episode length)
+                episode_infos.append(info)
+                # Reset agent (potential interface for providing reset parameters)
+                worker.child.send((WorkerCommand.reset, None))
+                obs_w = worker.child.recv()
+                # Reset recurrent cell states
+                if self.conf.use_lstm and self.conf.reset_hidden_state:
+                    rc = recurrent_cell_init(
+                        1,
+                        self.conf.hidden_state_size,
+                        self.conf.layer_type,
+                        self.conf.device,
                     )
-                )
-            else:
-                task_hidden_in = None
+                    if self.conf.layer_type == "lstm":
+                        self.recurrent_cell[0][:, worker_index, :] = rc[0]
+                        self.recurrent_cell[1][:, worker_index, :] = rc[1]
+                    elif self.conf.layer_type == "gru":
+                        self.recurrent_cell[:, worker_index, :] = rc
+                # reset reward scaling
+                self.reward_scaling[worker_index].reset()
 
-            task_data.append(
-                self.ppo_agent.select_action(task_state, task_hidden_in, i)
-            )
+            # Store latest observations
+            for _obs, _o in zip(self.obs, obs_w):
+                _obs[worker_index, :] = _o
 
-        action_t, action_logprob_t, value_t, ext_value_t, recurrent_cell_t = zip(
-            *task_data
-        )
-        action_t = torch.cat(action_t, dim=0)
-        action_logprob_t = torch.cat(action_logprob_t, dim=0)
-        value_t = torch.cat(value_t, dim=0)
-        ext_value_t = torch.cat(ext_value_t, dim=0) if self.conf.use_rnd else None
-        if self.conf.use_lstm:
-            if self.conf.layer_type == "gru":
-                recurrent_cell_t = torch.cat(recurrent_cell_t, 1)
-            elif self.conf.layer_type == "lstm":
-                recurrent_cell_t = (
-                    torch.cat([rc[0] for rc in recurrent_cell_t], dim=1),
-                    torch.cat([rc[1] for rc in recurrent_cell_t], dim=1),
-                )
-        else:
-            recurrent_cell_t = None
-        return action_t, action_logprob_t, value_t, ext_value_t, recurrent_cell_t
-
-    def _state_classified_mask(self, state: list):
-        """According to the taskid in the state, classify the state and generate a classified mask.
-        Args:
-            state {list} -- state like: [tensor(feature), tensor(task_id)]
-
-        Returns:
-            {list} -- classified mask list like: [tensor(m1),tensor(m2),...]
-            {list} -- sort indices
-        """
-        if self.conf.multi_task:
-            indices = np.argmax(state[-1].cpu().numpy(), axis=1)
-            unique_indices, inverse_indices = np.unique(indices, return_inverse=True)
-            mask = [
-                torch.tensor(np.where(inverse_indices == val)[0]).to(self.conf.device)
-                for val in unique_indices
-            ]
-        else:
-            indices = [0 for _ in range(self.conf.num_workers)]
-            mask = [torch.tensor(np.arange(self.conf.num_workers)).to(self.conf.device)]
-        reward_worker_map = {}
-        for w in range(self.conf.num_workers):
-            reward_worker_map[w] = torch.where(torch.stack(mask, dim=0) == w)[1].item()
-        buffer_mask = (
-            torch.arange(0, self.conf.num_workers)
-            .reshape(torch.stack(mask).shape)
-            .to(self.conf.device)
-        )
-        mask = torch.cat(mask)
-        return mask, indices, reward_worker_map, buffer_mask
+        # save next obs in buffer for rnd TODO !!! if done is true, next obs is not used
+        _state_t = _obs_2_tensor(self.obs, self.conf.device)
+        if self.conf.use_rnd:
+            for index in range(self.conf.task_num):
+                buffer = self.buffer[index]
+                start = index * self.conf.worker_per_task
+                end = start + self.conf.worker_per_task
+                slice_range = slice(start, end)
+                buffer.rnd_next_obs[:, step, :] = _state_t[0][slice_range, :]
 
     @staticmethod
     def _process_episode_info(episode_info: list) -> dict:
