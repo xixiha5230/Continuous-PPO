@@ -4,6 +4,7 @@ import sys
 
 from utils.ConfigHelper import ConfigHelper
 from utils.env_helper import create_env
+from worker.WorkerCommand import WorkerCommand
 
 
 def worker_process(
@@ -27,11 +28,11 @@ def worker_process(
     while True:
         try:
             cmd, data = remote.recv()
-            if cmd == "step":
+            if cmd == WorkerCommand.step:
                 remote.send(env.step(data))
-            elif cmd == "reset":
+            elif cmd == WorkerCommand.reset:
                 remote.send(env.reset())
-            elif cmd == "close":
+            elif cmd == WorkerCommand.close:
                 remote.send(env.close())
                 remote.close()
                 break

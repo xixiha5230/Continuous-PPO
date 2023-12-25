@@ -18,6 +18,7 @@ from utils.Logger import Logger
 from utils.obs_2_tensor import _obs_2_tensor
 from utils.polynomial_decay import get_decay
 from worker.Worker import Worker
+from worker.WorkerCommand import WorkerCommand
 
 
 class Trainer:
@@ -203,18 +204,18 @@ class Trainer:
             print("---Pre_normalization started.---")
             total_pre_normalization_steps = 512
             for w, worker in enumerate(self.workers):
-                worker.child.send(("reset", None))
+                worker.child.send((WorkerCommand.reset, None))
             for w, worker in enumerate(self.workers):
                 o = worker.child.recv()
                 self.state_normalizer(o)
             for _ in tqdm(range(total_pre_normalization_steps)):
                 for w, worker in enumerate(self.workers):
-                    worker.child.send(("step", self.action_space.sample()))
+                    worker.child.send((WorkerCommand.step, self.action_space.sample()))
                 for w, worker in enumerate(self.workers):
                     obs_w, _, _, info = worker.child.recv()
                     self.state_normalizer(obs_w)
                     if info:
-                        worker.child.send(("reset", None))
+                        worker.child.send((WorkerCommand.reset, None))
                         o = worker.child.recv()
                         self.state_normalizer(o)
             print("---Pre_normalization is done.---")
@@ -227,7 +228,7 @@ class Trainer:
         ]
         # reset env
         for worker in self.workers:
-            worker.child.send(("reset", None))
+            worker.child.send((WorkerCommand.reset, None))
         # Grab initial observations and store them in their respective placeholder location
         for w, worker in enumerate(self.workers):
             o = worker.child.recv()
@@ -317,7 +318,9 @@ class Trainer:
 
             # Send actions to the environments
             for w, worker in enumerate(self.workers):
-                worker.child.send(("step", restored_action_t[w].cpu().numpy()))
+                worker.child.send(
+                    (WorkerCommand.step, restored_action_t[w].cpu().numpy())
+                )
 
             # Retrieve step results from the environments
             for w, worker in enumerate(self.workers):
@@ -334,7 +337,7 @@ class Trainer:
                     # Store the information of the completed episode (e.g. total reward, episode length)
                     episode_infos.append(info)
                     # Reset agent (potential interface for providing reset parameters)
-                    worker.child.send(("reset", None))
+                    worker.child.send((WorkerCommand.reset, None))
                     # Get data from reset
                     obs_w = worker.child.recv()
                     obs_w = self.state_normalizer(obs_w)
@@ -499,7 +502,7 @@ class Trainer:
         self.logger.close()
 
         for worker in self.workers:
-            worker.child.send(("close", None))
+            worker.child.send((WorkerCommand.close, None))
 
         print(
             "============================================================================================"
