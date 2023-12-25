@@ -21,7 +21,6 @@ def create_env(
     env_win_path = conf.env_win_path
     env_linux_path = conf.env_linux_path
     action_type = conf.env_action_type
-    task = conf.task
     if env_name == None:
         from envs.UnityCommon import UnityCommon
 
@@ -31,10 +30,10 @@ def create_env(
 
         env_path = env_win_path if sys.platform == "win32" else env_linux_path
         return UnityCommon(file_name=env_path, worker_id=id, time_scale=time_scale)
-    elif env_type == "Unity_multi_task":
+    elif env_type == "Unity_Multitask":
         from envs.UnityMultitask import UnityMultitask
 
-        return UnityMultitask(task, id, time_scale)
+        return UnityMultitask(conf, id, time_scale)
     elif env_type == "gym" or env_type == "mujoco":
         class_name = env_name.split("-")[0]
         module = import_module(f"envs.{class_name}")
@@ -45,6 +44,6 @@ def create_env(
     elif env_name == "HalfCheetahVel":
         from envs.HalfCheetah.HalfCheetahVel import HalfCheetahVel
 
-        return HalfCheetahVel(task=task, render_mode=render_mode, id=id)
+        return HalfCheetahVel(task=None, render_mode=render_mode, id=id)
     else:
         raise f"Unknow env: {env_name}"

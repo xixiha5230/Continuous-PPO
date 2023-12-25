@@ -1,26 +1,45 @@
+import sys
+
 import numpy as np
 from gym.spaces import Box, Tuple
 from mlagents_envs.environment import UnityEnvironment
 from mlagents_envs.envs.unity_gym_env import UnityToGymWrapper
-from mlagents_envs.side_channel.engine_configuration_channel import (
-    EngineConfigurationChannel,
-)
+from mlagents_envs.side_channel.engine_configuration_channel import \
+    EngineConfigurationChannel
+
+from utils.ConfigHelper import ConfigHelper
 
 
 class UnityMultitask:
     """Unity multi task environment"""
 
-    def __init__(self, task: dict, worker_id: int, time_scale: int):
+    def __init__(self, config: ConfigHelper, worker_id: int, time_scale: int):
         """
         Args:
             task {dict} -- task config
             worker_id {int} -- unity work id
             time_scale {int} -- unnity time scale
         """
-        self._task = task
-        task_num = len(self._task)
-        self.file_name = self._task[worker_id % task_num].get("file_name", "")
-        self._one_hot = self._task[worker_id % task_num].get("one_hot", [0])
+        task_num = config.task_num
+
+        self.file_name = (
+            config.env_win_path[worker_id // config.worker_per_task].get(
+                "file_name", ""
+            )
+            if sys.platform == "win32"
+            else config.env_linux_path[worker_id // config.worker_per_task].get(
+                "file_name", ""
+            )
+        )
+        self._one_hot = (
+            config.env_win_path[worker_id // config.worker_per_task].get(
+                "one_hot", [0] * task_num
+            )
+            if sys.platform == "win32"
+            else config.env_linux_path[worker_id // config.worker_per_task].get(
+                "one_hot", [0] * task_num
+            )
+        )
         self._observation_space = Tuple(
             [
                 Box(float(-1), float(1), (84, 84, 3), np.float32),
