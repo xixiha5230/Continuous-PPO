@@ -129,15 +129,18 @@ class Conv1d(nn.Module):
         Args:
             x {torch.Tensor} -- tensor of sensor data shape like (batch, 400)
         """
-        if len(x.shape) == 1:
-            x = x.unsqueeze(0)
-        if len(x.shape) == 2:
-            x = x.unsqueeze(1)
-        batch = x.shape[0]
-        hidden = self.conv(x)
-        hidden = hidden.view(batch, -1)
-        x = self.fc(hidden)
-        return x
+        if len(x.shape) >= 3:
+            batch = x.shape[0]
+            x = x.reshape(-1, *x.shape[-2:])
+            x = x.permute([0, 2, 1])
+            hidden = self.conv(x)
+            hidden = hidden.view(batch, -1)
+            x = self.fc(hidden)
+            return x
+        else:
+            raise Exception(
+                f"input shape error, shape is {x.shape}, need (batch, 400,2)"
+            )
 
 
 class ObsNetImage(nn.Module):
@@ -199,4 +202,53 @@ class ObsNetUGV(nn.Module):
         ray = self.conv1d(ray_batch)
 
         x = torch.cat([img, ray], dim=-1)
+        return x
+
+
+class ObsNetUGVNew(nn.Module):
+    """UGV environment data process module"""
+
+    def __init__(self, obs_space: spaces.Tuple) -> None:
+        """
+        Args:
+            obs_space {spaces.Tuple} -- shape is ((84, 84, 3), (400, ))
+        """
+        assert obs_space[0].shape == (84, 84, 3)
+        assert obs_space[1].shape == (802,)
+        assert obs_space[2].shape == (2,)
+
+        self.RAY_SIZE = 400
+        self.RAY_RANDOM_SIZE = 250
+
+        super(ObsNetUGVNew, self).__init__()
+
+        self.conv2d = ObsNetImage(obs_space[0], 64)
+        self.conv1d = Conv1d(self.RAY_SIZE, 2, 64)
+        self.output_size = self.conv1d.output_size + self.conv2d.output_size + 2
+
+    def forward(self, obs: list):
+        """
+        Args:
+            obs {list} -- state is list of [image tensor, sensor tensor]
+        """
+        img_batch = obs[0]
+        ray_batch = obs[1]
+        vev_batch = obs[2]
+
+        img = self.conv2d(img_batch)
+
+        # (800, )
+        ray_batch = torch.cat(
+            [ray_batch[..., : self.RAY_SIZE], ray_batch[..., self.RAY_SIZE + 2 :]],
+            dim=-1,
+        )
+        # (400, 2)
+        ray_batch = ray_batch.view(*ray_batch.shape[:-1], self.RAY_SIZE, 2)
+        ray_random = (torch.rand(1) * self.RAY_RANDOM_SIZE).int()
+        random_index = torch.randperm(self.RAY_SIZE)[:ray_random]
+        ray_batch[..., random_index, 0] = 1.0
+        ray_batch[..., random_index, 1] = 1.0
+        ray = self.conv1d(ray_batch)
+
+        x = torch.cat([img, ray, vev_batch], dim=-1)
         return x

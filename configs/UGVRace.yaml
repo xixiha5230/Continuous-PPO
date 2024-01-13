@@ -1,0 +1,53 @@
+ppo:
+  entropy_coeff_schedule:
+    init: 0.001
+    final: 0.001
+    pow: 1.0
+    max_decay_steps: 0
+  clip_range_schedule:
+    init: 0.2
+    final: 0.2
+    pow: 1.0
+    max_decay_steps: 0
+  lr_schedule:
+    init: 1.0e-4
+    final: 1.0e-6
+    pow: 1.0
+    max_decay_steps: 2000
+  task_schedule:
+    init: 0
+    final: 0
+    pow: 1.0
+    max_decay_steps: 0
+  gamma: 0.99
+  lamda: 0.95
+  vf_loss_coeff: 0.5
+recurrence:
+  hidden_state_size: 256
+  layer_type: gru
+  reset_hidden_state: true
+  sequence_length: 8
+  use_lstm: true
+train:
+  K_epochs: 4
+  device: cuda
+  exp_name: new_env
+  hidden_layer_size: 512
+  max_updates: 10000
+  num_mini_batch: 8
+  random_seed: 5230
+  save_model_freq: 10
+  multi_task: false
+  use_state_normailzation: false
+  use_reward_scaling: true
+  use_rnd: false
+  rnd_rate: 0.5
+worker:
+  num_workers: 6
+  worker_steps: 512
+env:
+  env_type: Unity_UGV
+  env_name: UGVRace
+  env_action_type: continuous
+  env_win_path: ./UnityEnvs/UGVRace
+  env_linux_path: ./UnityEnvs/UGVRace-linux/bin.x86_64
