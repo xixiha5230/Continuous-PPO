@@ -11,6 +11,7 @@ from utils.ConfigHelper import ConfigHelper
 from utils.env_helper import create_env
 from utils.Logger import Logger
 from utils.obs_2_tensor import _obs_2_tensor
+from utils.recurrent_cell_init import recurrent_cell_init
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -86,13 +87,16 @@ def test(args):
         for ep in range(1, total_test_episodes + 1):
             state = env.reset()
             state = state_normalizer(state, update=False)
-            h_out = ppo_agent.init_recurrent_cell_states(1)
+            h_out = recurrent_cell_init(
+                1, config.hidden_state_size, config.layer_type, config.device
+            )
             step = 0
             while True:
                 h_in = h_out
-                action, h_out, task_predict = ppo_agent.eval_select_action(
-                    _obs_2_tensor(state, config.device), h_in
-                )
+                state = _obs_2_tensor(state, config.device)
+                if len(state[-1].shape) < 2:
+                    state = [s.unsqueeze(0) for s in state]
+                action, h_out, task_predict = ppo_agent.eval_select_action(state, h_in)
                 # imageio.imwrite(
                 #     f"./assert/{ep}_image_{step}_{task_predict.cpu().numpy()[0]}.png",
                 #     state[0],

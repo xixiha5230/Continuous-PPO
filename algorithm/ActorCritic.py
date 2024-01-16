@@ -8,7 +8,7 @@ from layers.Actor import GaussianActor, MultiGaussianActor
 from layers.Critic import Critic
 from layers.Hidden import HiddenNet
 from layers.RNN import RNN
-from layers.StateNet import ObsNetImage, ObsNetUGV
+from layers.StateNet import ObsNetImage, ObsNetUGV, ObsNetUGVNew
 from layers.TaskNet import TaskNet, TaskPredictNet
 from utils.ConfigHelper import ConfigHelper
 
@@ -38,6 +38,14 @@ class ActorCritic(nn.Module):
         ):
             # UGV
             self.obs_net = ObsNetUGV(obs_space)
+        elif (
+            len(obs_space) >= 2
+            and obs_space[0].shape == (84, 84, 3)
+            and obs_space[1].shape == (802,)
+            and obs_space[2].shape == (2,)
+        ):
+            # image and vector
+            self.obs_net = ObsNetUGVNew(obs_space)
         elif len(obs_space) == 1 and obs_space[0].shape == (84, 84, 3):
             # single image
             self.obs_net = ObsNetImage(obs_space[0])
