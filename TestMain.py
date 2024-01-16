@@ -55,7 +55,7 @@ class TestMain:
 
     def select_action(self, state):
         action, self.h_in, _ = self.agent.eval_select_action(state, self.h_in)
-        return action
+        return action.cpu().numpy()
 
     def _run():
         raise NotImplementedError
