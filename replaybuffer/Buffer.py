@@ -4,6 +4,7 @@ from gym import spaces as gym_spaces
 from gymnasium import spaces as gymnasium_spaces
 
 from utils.ConfigHelper import ConfigHelper
+from drq.Drq import RandomShiftsAug
 
 
 class Buffer:
@@ -40,6 +41,9 @@ class Buffer:
 
         self.gamma = config.gamma
         self.lamda = config.lamda
+
+        # drq image aug, ray aug
+        self.drq_aug = RandomShiftsAug(config)
 
         self.batch_size = self.n_workers * self.worker_steps
         self.mini_batch_size = self.batch_size // self.num_mini_batch
@@ -288,6 +292,13 @@ class Buffer:
                 self.samples_flat["rnd_advantages"]
                 - self.samples_flat["rnd_advantages"].mean()
             ) / (self.samples_flat["rnd_advantages"].std() + 1e-8)
+
+        # add drq aug
+        self.samples_flat["obs_aug"] = []
+        for s in self.samples_flat["obs"]:
+            s = self.drq_aug(s)
+            self.samples_flat["obs_aug"].append(self.drq_aug(s.clone()))
+
         # Determine the number of sequences per mini batch
         num_sequences_per_batch = self.num_sequences // self.num_mini_batch
         # Arrange a list that determines the sequence count for each mini batch

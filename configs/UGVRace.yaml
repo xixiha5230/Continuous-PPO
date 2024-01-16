@@ -42,6 +42,11 @@ train:
   use_reward_scaling: true
   use_rnd: false
   rnd_rate: 0.5
+drq:
+  use_drq: true
+  drq_image_pad: 4
+  drq_ray_pad: 4
+  drq_M: 1
 worker:
   num_workers: 6
   worker_steps: 512
