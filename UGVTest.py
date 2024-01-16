@@ -13,19 +13,19 @@ class UGVTest(TestMain):
 
     def _run(self):
         obs = self.env.reset()
+        self.reset()
         state = self.obs_preprocess(obs)
-        h_in = self.recurrent_cell_init()
 
         while True:
-            action, h_in = self.select_action(state, h_in)
+            action = self.select_action(state)
             obs, reward, done, _ = self.env.step(action.cpu().numpy())
             state = self.obs_preprocess(obs)
             self.env.render()
             time.sleep(0.05)
             if done:
                 obs = self.env.reset()
+                self.reset()
                 state = self.obs_preprocess(obs)
-                h_in = self.recurrent_cell_init()
 
 
 if __name__ == "__main__":

@@ -35,6 +35,9 @@ class TestMain:
         print(f"resume from {latest_checkpoint}")
         self.agent.load(latest_checkpoint)
         self.agent.policy.eval()
+        self.h_in = recurrent_cell_init(
+            1, self.conf.hidden_state_size, self.conf.layer_type, self.conf.device
+        )
         with torch.no_grad():
             self._run()
 
@@ -45,14 +48,14 @@ class TestMain:
             state = [s.unsqueeze(0) for s in state]
         return state
 
-    def recurrent_cell_init(self):
-        return recurrent_cell_init(
+    def reset(self):
+        self.h_in = recurrent_cell_init(
             1, self.conf.hidden_state_size, self.conf.layer_type, self.conf.device
         )
 
-    def select_action(self, state, h_in):
-        action, h_out, _ = self.agent.eval_select_action(state, h_in)
-        return action, h_out
+    def select_action(self, state):
+        action, self.h_in, _ = self.agent.eval_select_action(state, self.h_in)
+        return action
 
     def _run():
         raise NotImplementedError
