@@ -1,0 +1,3 @@
+[submodule "rosugv"]
+	path = rosugv
+	url = ssh://git@gitlab.n705.work:2222/fisher/rosugv.git

@@ -160,7 +160,7 @@ class ObsNetImage(nn.Module):
         self.fc.apply(weights_init_)
         self.output_size = output_size
 
-    def forward(self, obs: torch.Tensor):
+    def forward(self, obs: torch.Tensor, is_ros: bool = False):
         """
         Args:
             obs {torch.Tensor} -- tensor of image
@@ -190,7 +190,7 @@ class ObsNetUGV(nn.Module):
         self.conv2d = ObsNetImage(obs_space[0], 64)
         self.output_size = self.conv1d.output_size + self.conv2d.output_size
 
-    def forward(self, obs: list):
+    def forward(self, obs: list, is_ros: bool = False):
         """
         Args:
             obs {list} -- state is list of [image tensor, sensor tensor]
@@ -226,7 +226,7 @@ class ObsNetUGVNew(nn.Module):
         self.conv1d = Conv1d(self.RAY_SIZE, 2, 64)
         self.output_size = self.conv1d.output_size + self.conv2d.output_size + 2
 
-    def forward(self, obs: list):
+    def forward(self, obs: list, is_ros: bool = False):
         """
         Args:
             obs {list} -- state is list of [image tensor, sensor tensor]
@@ -244,10 +244,11 @@ class ObsNetUGVNew(nn.Module):
         )
         # (400, 2)
         ray_batch = ray_batch.view(*ray_batch.shape[:-1], self.RAY_SIZE, 2)
-        ray_random = (torch.rand(1) * self.RAY_RANDOM_SIZE).int()
-        random_index = torch.randperm(self.RAY_SIZE)[:ray_random]
-        ray_batch[..., random_index, 0] = 1.0
-        ray_batch[..., random_index, 1] = 1.0
+        if not is_ros:
+            ray_random = (torch.rand(1) * self.RAY_RANDOM_SIZE).int()
+            random_index = torch.randperm(self.RAY_SIZE)[:ray_random]
+            ray_batch[..., random_index, 0] = 1.0
+            ray_batch[..., random_index, 1] = 1.0
         ray = self.conv1d(ray_batch)
 
         x = torch.cat([img, ray, vev_batch], dim=-1)

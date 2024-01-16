@@ -35,7 +35,11 @@ class PPO:
         )
 
     def eval_select_action(
-        self, obs: torch.Tensor, hidden_in: torch.Tensor = None, module_index: int = -1
+        self,
+        obs: torch.Tensor,
+        hidden_in: torch.Tensor = None,
+        module_index: int = -1,
+        is_ros: bool = False,
     ):
         """Only use for test no training: select action based on state and hidden_in
 
@@ -49,7 +53,11 @@ class PPO:
         """
         with torch.no_grad():
             dist, hidden_out, task_predict = self.policy.eval_forward(
-                obs, hidden_in, sequence_length=1, module_index=module_index
+                obs,
+                hidden_in,
+                sequence_length=1,
+                module_index=module_index,
+                is_ros=is_ros,
             )
             action = dist.sample().detach()
             if hidden_out is not None:
