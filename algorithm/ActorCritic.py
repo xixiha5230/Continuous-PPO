@@ -104,6 +104,7 @@ class ActorCritic(nn.Module):
         hidden_in: torch.Tensor = None,
         sequence_length: int = 1,
         module_index: int = -1,
+        is_ros: bool = False,
     ):
         """
         Args:
@@ -125,7 +126,7 @@ class ActorCritic(nn.Module):
         else:
             feature = obs
 
-        feature = self.obs_net(feature) if hasattr(self, "obs_net") else obs[0]
+        feature = self.obs_net(feature, is_ros) if hasattr(self, "obs_net") else obs[0]
         obs_feature = feature
 
         if self.use_lstm:
@@ -154,6 +155,7 @@ class ActorCritic(nn.Module):
         hidden_in: torch.Tensor = None,
         sequence_length: int = 1,
         module_index: int = -1,
+        is_ros: bool = False,
     ):
         """
         Only use for test no training: auto select actor to forward
@@ -172,7 +174,9 @@ class ActorCritic(nn.Module):
         else:
             feature = obs
 
-        feature = self.obs_net(feature) if hasattr(self, "obs_net") else feature[0]
+        feature = (
+            self.obs_net(feature, is_ros) if hasattr(self, "obs_net") else feature[0]
+        )
         obs_feature = feature
         if self.use_lstm:
             feature, hidden_out = self.rnn_net(feature, hidden_in, sequence_length)

@@ -53,9 +53,9 @@ class TestMain:
             1, self.conf.hidden_state_size, self.conf.layer_type, self.conf.device
         )
 
-    def select_action(self, state):
-        action, self.h_in, _ = self.agent.eval_select_action(state, self.h_in)
-        return action
+    def select_action(self, state, is_ros: bool = False):
+        action, self.h_in, _ = self.agent.eval_select_action(state, self.h_in, is_ros)
+        return action.cpu().numpy()
 
     def _run():
         raise NotImplementedError

@@ -18,7 +18,7 @@ class UGVTest(TestMain):
 
         while True:
             action = self.select_action(state)
-            obs, reward, done, _ = self.env.step(action.cpu().numpy())
+            obs, reward, done, _ = self.env.step(action)
             state = self.obs_preprocess(obs)
             self.env.render()
             time.sleep(0.05)
