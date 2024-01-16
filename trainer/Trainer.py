@@ -90,9 +90,7 @@ class Trainer:
         self.obs, self.recurrent_cell = self._reset_env()
 
         print("Step 10: Set log files")
-        self.logger = Logger(
-            self.conf.env_name, self.conf.exp_name, self.conf.run_num, self.conf.resume
-        )
+        self.logger = Logger(self.conf)
         self.conf.run_num = self.logger.run_num
 
         print("Step 11: Check resume")

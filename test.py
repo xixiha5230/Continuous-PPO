@@ -44,7 +44,7 @@ def test(args):
     # TODO task 增加后模型读取错误
 
     config = ConfigHelper(args.config_file)
-    logger = Logger(config.env_name, config.exp_name, config.run_num, True, True)
+    logger = Logger(config, True)
 
     total_test_episodes = 1 if args.save_gif else 20
     save_gif = args.save_gif

@@ -1,3 +1,4 @@
+import os
 import sys
 
 import numpy as np
@@ -31,6 +32,7 @@ class UnityMultitask:
                 "file_name", ""
             )
         )
+        self.file_name = os.path.join(config.glob_dir, self.file_name)
         self._one_hot = (
             config.env_win_path[worker_id // config.worker_per_task].get(
                 "one_hot", [0] * task_num
