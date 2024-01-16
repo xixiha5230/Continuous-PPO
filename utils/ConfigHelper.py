@@ -1,4 +1,5 @@
 import os
+import sys
 
 import torch
 import yaml
@@ -113,6 +114,14 @@ class ConfigHelper:
             else 1
         )
         self.worker_per_task = self.num_workers // self.task_num
+
+        # drq hyperparameters
+        drq = {}
+        conf_drq: dict = self.conf.setdefault("drq", drq)
+        self.use_drq = conf_drq.setdefault("use_drq", False)
+        self.drq_image_pad = conf_drq.setdefault("drq_image_pad", 4)
+        self.drq_ray_pad = conf_drq.setdefault("drq_ray_pad", 4)
+        self.drq_M = conf_drq.setdefault("drq_M", 2)
 
     def save(self, log_dir):
         self.conf["train"]["update"] = self.update
