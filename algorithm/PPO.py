@@ -27,6 +27,8 @@ class PPO:
         self.use_rnd = config.use_rnd
         self.rnd_rate = config.rnd_rate
 
+        self.use_drq = config.use_drq
+
         self.policy = ActorCritic(obs_space, action_space, config).to(self.device)
         if self.multi_task:
             self.task_predict_loss = torch.nn.CrossEntropyLoss()
@@ -217,6 +219,24 @@ class PPO:
             sequence_length,
             module_index,
         )
+        # Forward for augmented data 两次forward actor和critic 会出问题吗？ 考虑只forward critic
+        (
+            _,
+            new_values_aug,
+            new_rnd_value_aug,
+            _,
+            _,
+        ) = (
+            self.evaluate(
+                mini_batch["obs_aug"],
+                mini_batch["actions"],
+                recurrent_cell,
+                sequence_length,
+                module_index,
+            )
+            if self.use_drq
+            else (None, None, None, None, None)
+        )
 
         # Remove paddings
         new_values = new_values[mini_batch["loss_mask"]]
@@ -230,6 +250,15 @@ class PPO:
         new_rnd_value = (
             new_rnd_value[mini_batch["loss_mask"]]
             if isinstance(new_rnd_value, torch.Tensor)
+            else None
+        )
+
+        new_values_aug = (
+            new_values_aug[mini_batch["loss_mask"]] if self.use_drq else None
+        )
+        new_rnd_value_aug = (
+            new_rnd_value_aug[mini_batch["loss_mask"]]
+            if self.use_drq and self.use_rnd
             else None
         )
 
@@ -262,6 +291,7 @@ class PPO:
         policy_loss = policy_loss.mean()
 
         # Value function loss
+        new_values = 0.5 * (new_values + new_values_aug) if self.use_drq else new_values
         sampled_return = mini_batch["values"] + mini_batch["advantages"]
         clipped_value = mini_batch["values"] + (
             new_values - mini_batch["values"]
@@ -270,6 +300,11 @@ class PPO:
             (new_values - sampled_return) ** 2, (clipped_value - sampled_return) ** 2
         )
         if self.use_rnd:
+            new_rnd_value = (
+                0.5 * (new_rnd_value + new_rnd_value_aug)
+                if self.use_drq
+                else new_rnd_value
+            )
             rnd_return = mini_batch["rnd_values"] + mini_batch["rnd_advantages"]
             rnd_clipped_value = mini_batch["rnd_values"] + (
                 new_rnd_value - mini_batch["rnd_values"]
