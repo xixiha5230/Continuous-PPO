@@ -37,6 +37,7 @@ def create_env(
         from envs.UnityUGV import UnityUGV
 
         env_path = env_win_path if sys.platform == "win32" else env_linux_path
+        env_path = os.path.join(conf.glob_dir, env_path)
         return UnityUGV(file_name=env_path, worker_id=id, time_scale=time_scale)
     elif env_type == "Unity_Multitask":
         from envs.UnityMultitask import UnityMultitask

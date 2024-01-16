@@ -5,10 +5,17 @@ import pickle
 import numpy as np
 import tensorboardX
 
+from utils.ConfigHelper import ConfigHelper
+
 
 class Logger:
-    def __init__(self, env_name, exp_name, run_num, resume, test=False) -> None:
-        base_log_dir = os.path.join("PPO_logs", env_name, exp_name)
+    def __init__(self, conf: ConfigHelper, test: bool = False) -> None:
+        global_dir = conf.glob_dir
+        env_name = conf.env_name
+        exp_name = conf.exp_name
+        run_num = conf.run_num
+        resume = conf.resume
+        base_log_dir = os.path.join(global_dir, "PPO_logs", env_name, exp_name)
         os.makedirs(base_log_dir, exist_ok=True)
         self.run_num = len(next(os.walk(base_log_dir))[1]) if not resume else run_num
         self.run_log_dir = os.path.join(base_log_dir, f"run_{self.run_num}")

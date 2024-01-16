@@ -114,6 +114,11 @@ class ConfigHelper:
         )
         self.worker_per_task = self.num_workers // self.task_num
 
+        # global dir config dir is : log_dir/env_name/exp_name/run_num/config.yaml,so global_dir is : dir of "log_dir"
+        config_file_path = os.path.abspath(config_file)
+        path_parts = config_file_path.split(os.sep)
+        self.glob_dir = os.sep.join(path_parts[:-5])
+
     def save(self, log_dir):
         self.conf["train"]["update"] = self.update
         self.conf["train"]["i_episode"] = self.i_episode
