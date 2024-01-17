@@ -34,13 +34,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config_file", help="config file")
     parser.add_argument("--ckpt", help="ckeckpoint to restore")
+    parser.add_argument("--debug", action="store_true", help="debug mode")
     args = parser.parse_args()
 
     RosRace(
         args.config_file,
+        args.debug,
         args.ckpt,
         rl_keys=[RL_CAMERA, RL_LASER, RL_STATE],
         decision_period=2,
         decision_rate=20,
-        motor_limit=0.75,
+        motor_limit=0.25,
     )
