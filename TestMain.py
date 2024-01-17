@@ -55,7 +55,9 @@ class TestMain:
 
     def select_action(self, obs, is_ros: bool = False):
         obs = self._obs_preprocess(obs)
-        action, self.h_in, _ = self.agent.eval_select_action(obs, self.h_in, is_ros)
+        action, self.h_in, _ = self.agent.eval_select_action(
+            obs, self.h_in, module_index=-1, is_ros=is_ros
+        )
         return action.cpu().numpy()
 
     def _run():
