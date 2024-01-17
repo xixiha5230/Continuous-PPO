@@ -123,9 +123,10 @@ class ConfigHelper:
         self.drq_ray_pad = conf_drq.setdefault("drq_ray_pad", 4)
         self.drq_M = conf_drq.setdefault("drq_M", 2)
 
-        # global dir config dir is : log_dir/env_name/exp_name/run_num/config.yaml,so global_dir is : dir of "log_dir"
+        # config dir is : log_dir/env_name/exp_name/run_num/config.yaml,so global_dir is : dir of "log_dir"
         config_file_path = os.path.abspath(config_file)
         path_parts = config_file_path.split(os.sep)
+        # -5 out of range, it's return "", means current dir
         self.glob_dir = os.sep.join(path_parts[:-5])
 
     def save(self, log_dir):
