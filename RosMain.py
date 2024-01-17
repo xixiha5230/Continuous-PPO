@@ -3,7 +3,7 @@ from typing import List
 
 import numpy as np
 
-from joystick import Joystick
+from rosugv.joystick import Joystick
 from rosugv.ros_ugv import RL_CAMERA, RL_DEPTH, RL_LASER, RL_STATE, RosUGV
 from TestMain import TestMain as Main
 from utils.ConfigHelper import ConfigHelper
@@ -58,8 +58,7 @@ class RosMain(Main):
                 print("Waiting...")
 
                 while (
-                    False
-                    and not self.js.button_states["x"]
+                    not self.js.button_states["x"]
                     and not self.js.button_states["a"]
                     and not self.js.button_states["tl"]
                 ):
@@ -69,28 +68,24 @@ class RosMain(Main):
                     print("Closing...")
                     break
 
-                if self.js.button_states["x"] or True:
+                if self.js.button_states["x"]:
                     print("Start Episode")
                     self.ros_ugv.reset()
                     self.reset()
-                    obs_list = self.ros_ugv.get_rl_obs_list()
-                    obs_list = self._custom_rl_obs_list(*obs_list)
-                    obs_list = self.obs_preprocess(obs_list)
+                    obs = self._custom_rl_obs_list(*self.ros_ugv.get_rl_obs_list())
                     step = 0
                     while not self.js.button_states["y"]:
                         if step % self.decision_period == 0:
-                            action = self.select_action(obs_list, is_ros=True)
+                            action = self.select_action(obs, is_ros=True)
                             if DEBUG_ACTION:
                                 action = np.zeros((1, 2), dtype=np.float32)
-                            print(action)
+                            # print(action)
                             # [[转向,油门]]
                             action = [[action[0][0], 0.5 * action[0][1]]]
 
                         self.ros_ugv.send_rl_action(action)
                         step += 1
-                        obs_list = self.ros_ugv.get_rl_obs_list()
-                        obs_list = self._custom_rl_obs_list(*obs_list)
-                        obs_list = self.obs_preprocess(obs_list)
+                        obs = self._custom_rl_obs_list(*self.ros_ugv.get_rl_obs_list())
                     self.ros_ugv.stop()
 
                 elif self.js.button_states["a"]:

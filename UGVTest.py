@@ -14,19 +14,19 @@ class UGVTest(TestMain):
     def _run(self):
         obs = self.env.reset()
         self.reset()
-        state = self.obs_preprocess(obs)
-
+        reward = 0
         while True:
-            action = self.select_action(state)
-            obs, reward, done, _ = self.env.step(action)
-            state = self.obs_preprocess(obs)
+            action = self.select_action(obs)
+            obs, _r, done, _ = self.env.step(action)
+            reward += _r
             self.env.render()
-            time.sleep(0.05)
+            time.sleep(0.01)
             if done:
                 obs = self.env.reset()
                 self.reset()
-                state = self.obs_preprocess(obs)
+                print(f"reward: {reward}")
+                reward = 0
 
 
 if __name__ == "__main__":
-    UGVTest("/mnt/d/Code/PPO/PPO_logs/UGVRace/new_env/run_1/config.yaml")
+    UGVTest("/mnt/d/Code/PPO/PPO_logs/UGVRace/new_env/run_10/config.yaml")

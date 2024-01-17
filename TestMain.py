@@ -41,7 +41,7 @@ class TestMain:
         with torch.no_grad():
             self._run()
 
-    def obs_preprocess(self, obs):
+    def _obs_preprocess(self, obs):
         state = self.state_normalizer(obs, update=False)
         state = _obs_2_tensor(state, self.conf.device)
         if len(state[-1].shape) < 2:
@@ -53,8 +53,9 @@ class TestMain:
             1, self.conf.hidden_state_size, self.conf.layer_type, self.conf.device
         )
 
-    def select_action(self, state, is_ros: bool = False):
-        action, self.h_in, _ = self.agent.eval_select_action(state, self.h_in, is_ros)
+    def select_action(self, obs, is_ros: bool = False):
+        obs = self._obs_preprocess(obs)
+        action, self.h_in, _ = self.agent.eval_select_action(obs, self.h_in, is_ros)
         return action.cpu().numpy()
 
     def _run():
