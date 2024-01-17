@@ -31,7 +31,7 @@ recurrence:
 train:
   K_epochs: 4
   device: cuda
-  exp_name: new_env
+  exp_name: drq_v2
   hidden_layer_size: 512
   max_updates: 10000
   num_mini_batch: 8

@@ -294,10 +294,10 @@ class Buffer:
             ) / (self.samples_flat["rnd_advantages"].std() + 1e-8)
 
         # add drq aug
-        self.samples_flat["obs_aug"] = []
+        # self.samples_flat["obs_aug"] = []
         for s in self.samples_flat["obs"]:
             s = self.drq_aug(s)
-            self.samples_flat["obs_aug"].append(self.drq_aug(s.clone()))
+            # self.samples_flat["obs_aug"].append(self.drq_aug(s.clone()))
 
         # Determine the number of sequences per mini batch
         num_sequences_per_batch = self.num_sequences // self.num_mini_batch
