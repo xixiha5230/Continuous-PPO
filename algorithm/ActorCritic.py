@@ -120,33 +120,22 @@ class ActorCritic(nn.Module):
             {task_predict}: predicted task id
         """
 
-        if self.multi_task:
-            task_feature = self.task_net(obs[-1])
-            feature = obs[:-1]
-        else:
-            feature = obs
-
-        feature = self.obs_net(feature, is_ros) if hasattr(self, "obs_net") else obs[0]
+        feature = self._forward_obs(obs, is_ros)
         obs_feature = feature
 
-        if self.use_lstm:
-            feature, hidden_out = self.rnn_net(feature, hidden_in, sequence_length)
-        else:
-            hidden_out = None
-
-        feature = self.hidden_net(feature)
-
+        feature, hidden_out = self._forward_rnn(feature, hidden_in, sequence_length)
+        feature = self._forward_hidden(feature)
+        task_predict = None
         if self.multi_task:
+            task_feature = self.task_net(obs[-1])
             task_predict = self.task_predict_net(obs_feature)
-            # if self.finetune:
-            module_index = task_predict
-            dist = self.actor(feature, module_index)
-            value, rnd_value = self.critic(torch.cat((feature, task_feature), -1))
+            dist = self.forward_actor((task_predict, feature))
+            value, rnd_value = self.forward_critic(
+                torch.cat((feature, task_feature), -1)
+            )
         else:
-            dist = self.actor(feature)
-            value, rnd_value = self.critic(feature)
-            task_predict = None
-
+            dist = self.forward_actor(feature)
+            value, rnd_value = self.forward_critic(feature)
         return dist, value, rnd_value, hidden_out, task_predict
 
     def eval_forward(
@@ -168,30 +157,95 @@ class ActorCritic(nn.Module):
             {dist}: action dist
             {hidden_out}: RNN hidden out feature
         """
-
-        if self.multi_task:
-            feature = obs[0] if len(obs) <= 2 else obs[:-1]
-        else:
-            feature = obs
-
-        feature = (
-            self.obs_net(feature, is_ros) if hasattr(self, "obs_net") else feature[0]
-        )
+        feature = self._forward_obs(obs, is_ros)
         obs_feature = feature
-        if self.use_lstm:
-            feature, hidden_out = self.rnn_net(feature, hidden_in, sequence_length)
-        else:
-            hidden_out = None
+        feature, hidden_out = self._forward_rnn(feature, hidden_in, sequence_length)
+        feature = self._forward_hidden(feature)
 
-        feature = self.hidden_net(feature)
-
+        task_predict = None
         if self.multi_task:
             task_predict = self.task_predict_net(obs_feature)
             # module_index = torch.argmax(task_predict).item()
             # print(task_predict)
-            dist = self.actor(feature, task_predict)
+            dist = self.forward_actor((task_predict, feature))
         else:
-            task_predict = None
-            dist = self.actor(feature)
-
+            dist = self.forward_actor(feature)
         return dist, hidden_out, task_predict
+
+    def forward_obs(self, obs: torch.Tensor, is_ros: bool = False):
+        """
+        Args:
+            obs {tensor, list} -- observation tensor
+        Returns:
+            {tensor}: feature
+        """
+        feature = self._forward_obs(obs, is_ros)
+        feature, hidden_out = self._forward_rnn(feature)
+        feature = self._forward_hidden(feature)
+        return feature, hidden_out
+
+    def forward_critic(self, feature: torch.Tensor):
+        """
+        Args:
+            feature {tensor} -- feature tensor
+        Returns:
+            {tensor}: value base on current state
+            {tensor}: rnd value base on current state
+        """
+        value, rnd_value = self.critic(feature)
+        return value, rnd_value
+
+    def forward_actor(self, feature: torch.Tensor):
+        """
+        Args:
+            feature {tensor} -- feature tensor
+            module_index {int} -- index of Actor or Critic to select
+        Returns:
+            {distribution}: action distribution
+        """
+        dist = self.actor(feature)
+        return dist
+
+    def _forward_obs(self, obs: torch.Tensor, is_ros: bool = False):
+        """
+        Args:
+            obs {tensor, list} -- observation tensor
+        Returns:
+            {tensor}: feature
+        """
+        if self.multi_task:
+            feature = obs[:-1]
+        else:
+            feature = obs
+        feature = self.obs_net(feature, is_ros) if hasattr(self, "obs_net") else obs[0]
+        return feature
+
+    def _forward_rnn(
+        self,
+        feature: torch.Tensor,
+        hidden_in: torch.Tensor = None,
+        sequence_length: int = 1,
+    ):
+        """
+        Args:
+            feature {tensor} -- feature tensor
+            hidden_in {torch.Tensor} -- RNN hidden in feature
+            sequence_length {int} -- RNN sequence length
+        Returns:
+            {tensor}: feature
+        """
+        if self.use_lstm:
+            feature, hidden_out = self.rnn_net(feature, hidden_in, sequence_length)
+        else:
+            hidden_out = None
+        return feature, hidden_out
+
+    def _forward_hidden(self, feature: torch.Tensor):
+        """
+        Args:
+            feature {tensor} -- feature tensor
+        Returns:
+            {tensor}: feature
+        """
+        feature = self.hidden_net(feature)
+        return feature

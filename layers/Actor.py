@@ -159,12 +159,13 @@ class MultiGaussianActor(Actor):
         else:
             raise NotImplementedError(self.action_type)
 
-    def forward(self, feature: torch.Tensor, actor_index: Union[torch.Tensor, int]):
+    def forward(self, data: tuple):
         """
         Args:
             feature {torch.Tensor} --- hight level feature
             actor_index {int} -- module {actor[actor_index]} will be select to forward
         """
+        feature, actor_index = data
         if self.action_type == "continuous":
             if isinstance(actor_index, torch.Tensor):
                 max_value, _ = torch.max(actor_index, dim=-1)
