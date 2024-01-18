@@ -97,10 +97,11 @@ def test(args):
                 if len(state[-1].shape) < 2:
                     state = [s.unsqueeze(0) for s in state]
                 action, h_out, task_predict = ppo_agent.eval_select_action(state, h_in)
-                # imageio.imwrite(
-                #     f"./assert/{ep}_image_{step}_{task_predict.cpu().numpy()[0]}.png",
-                #     state[0],
-                # )
+                # if step % 30 == 0:
+                #     imageio.imwrite(
+                #         f"./assert/{ep}_image_{step}.png",
+                #         state[0][0].cpu().numpy(),
+                #     )
                 step += 1
                 state, _, _, info = env.step(action[0].cpu().numpy())
                 state = state_normalizer(state, update=False)
