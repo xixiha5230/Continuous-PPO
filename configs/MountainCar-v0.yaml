@@ -14,6 +14,11 @@ ppo:
     final: 3.0e-4
     pow: 1.0
     max_decay_steps: 150
+  task_schedule:
+    init: 0
+    final: 0
+    pow: 1.0
+    max_decay_steps: 0
   gamma: 0.99
   lamda: 0.95
   vf_loss_coeff: 0.3
@@ -26,18 +31,28 @@ recurrence:
 train:
   K_epochs: 4
   device: cuda
-  env_name: MountainCar-v0
-  exp_name: rnd_gru_decay
+  exp_name: test
   action_type: discrete
   hidden_layer_size: 256
   max_updates: 200
   num_mini_batch: 8
   random_seed: 5230
   save_model_freq: 10
+  multi_task: false
+  use_state_normailzation: false
   use_reward_scaling: true
-  use_state_normailzation: true
-  use_rnd: true
-  rnd_rate: 1.
+  use_rnd: false
+  rnd_rate: 0.5
+drq:
+  use_drq: false
+  drq_image_pad: 4
+  drq_ray_pad: 4
+  drq_M: 1
 worker:
-  num_workers: 16
+  num_workers: 6
   worker_steps: 256
+
+env:
+  env_type: gym
+  env_name: MountainCar-v0
+  env_action_type: discrete
